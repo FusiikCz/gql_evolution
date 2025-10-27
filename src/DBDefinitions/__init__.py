@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from .BaseModel import BaseModel
 from .EventDBModel import EventModel
 from .EventInvitationModel import EventInvitationModel
+from .ApiKeyDBModel import ApiKeyModel
+from .UsageDBModel import UsageModel
+from .UserDBModel import UserModel
+from .DocumentDBModel import DocumentModel
 
 async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     """Provede nezbytne ukony a vrati asynchronni SessionMaker"""
@@ -19,7 +23,8 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
             await conn.run_sync(BaseModel.metadata.drop_all)
             print("BaseModel.metadata.drop_all finished")
 
-        # await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
+        # Create pgvector extension BEFORE creating tables
+        await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
 
         if makeUp:
             try:

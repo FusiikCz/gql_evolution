@@ -57,7 +57,7 @@ class BaseGQLModel:
         loader = cls.getLoader(info=info)
         db_row = await loader.load(_id)
         
-        return cls(id=id) if db_row is None else cls.from_dataclass(db_row=db_row)
+        return None if db_row is None else cls.from_dataclass(db_row=db_row)
     
     @classmethod
     async def resolve_reference(cls, info: strawberry.types.Info, id: uuid.UUID, **otherdata):
@@ -68,6 +68,7 @@ class BaseGQLModel:
         permission_classes=[OnlyForAuthentized]
         )
     lastchange: typing.Optional[datetime.datetime] = strawberry.field(
+        name="lastchange",
         description="timestamp", 
         default=None,
         permission_classes=[OnlyForAuthentized]
@@ -78,16 +79,19 @@ class BaseGQLModel:
         permission_classes=[OnlyForAuthentized]
         )
     createdby_id: typing.Optional[IDType] = strawberry.field(
+        name="createdby_id",
         description="who created this entity", 
         default=None,
         permission_classes=[OnlyForAuthentized]
         )
     changedby_id: typing.Optional[IDType] = strawberry.field(
+        name="changedby_id",
         description="who changed this entity", 
         default=None,
         permission_classes=[OnlyForAuthentized]
         )
     rbacobject_id: typing.Optional[IDType] = strawberry.field(
+        name="rbacobject_id",
         description="rbac ruling object", 
         default=None,
         permission_classes=[OnlyForAuthentized]
@@ -97,21 +101,21 @@ class BaseGQLModel:
         description="who created this entity",
         permission_classes=[OnlyForAuthentized]
         )
-    async def createdby(self) -> typing.Optional["UserGQLModel"]:
+    async def createdby(self, info: strawberry.types.Info) -> typing.Optional["UserGQLModel"]:
         from .UserGQLModel import UserGQLModel
-        return None if self.createdby_id is None else UserGQLModel(id=self.createdby_id)
+        return None if self.createdby_id is None else await UserGQLModel.load_with_loader(info=info, id=self.createdby_id)
 
     @strawberry.field(
         description="who changed this entity",
         permission_classes=[OnlyForAuthentized]
         )
-    async def changedby(self) -> typing.Optional["UserGQLModel"]:
+    async def changedby(self, info: strawberry.types.Info) -> typing.Optional["UserGQLModel"]:
         from .UserGQLModel import UserGQLModel
-        return None if self.changedby_id is None else UserGQLModel(id=self.changedby_id)
+        return None if self.changedby_id is None else await UserGQLModel.load_with_loader(info=info, id=self.changedby_id)
 
     @strawberry.field(
         description="rbac ruling object",
         permission_classes=[OnlyForAuthentized]
         )
-    async def rbacobject(self) -> typing.Optional["RBACObjectGQLModel"]:
+    async def rbacobject(self, info: strawberry.types.Info) -> typing.Optional["RBACObjectGQLModel"]:
         return None if self.rbacobject_id is None else RBACObjectGQLModel(id=self.rbacobject_id)

@@ -35,14 +35,18 @@ from openai import AzureOpenAI, AsyncAzureOpenAI
 from openai.types.chat import ChatCompletion
 from openai.resources.chat.completions import AsyncCompletions
 
-client = AsyncAzureOpenAI(
-    azure_endpoint=endpoint,
-    azure_deployment=model_name,  # tvůj deployment name
-    api_key=OPENAI_API_KEY,
-    api_version="2024-12-01-preview"
-)
+if not os.getenv("AZURE_OPENAI_API_KEY"):
+    print("Azure API key not found - running without AI features")
+    client = None
+else:
+    client = AsyncAzureOpenAI(
+        azure_endpoint=endpoint,
+        azure_deployment=model_name,  # tvůj deployment name
+        api_key=OPENAI_API_KEY,
+        api_version="2024-12-01-preview"
+    )
 
-azureCompletions: AsyncCompletions = client.chat.completions
+azureCompletions: AsyncCompletions = client.chat.completions if client else None
 
 class ChatSession:
     def __init__(self, system_prompt: str = "You are a helpful assistant.",
@@ -53,7 +57,7 @@ class ChatSession:
         self.messages: typing.List[typing.Dict[str, typing.Any]] = [
             {"role": "system", "content": self.system_prompt}
         ]
-        self.azureCompletions: AsyncCompletions = client.chat.completions
+        self.azureCompletions: AsyncCompletions = client.chat.completions if client else None
 
     def _trim_history(self) -> None:
         # nechá první system zprávu + posledních N tahů
@@ -81,6 +85,9 @@ class ChatSession:
         temperature: float = 0.2,
         max_tokens: int = 800
     ) -> str:
+        if self.azureCompletions is None:
+            return "⚠️ AI features are not available (no Azure API key configured)"
+        
         await self.append_history({"role": "user", "content": user_text})
         history: list = await self.get_history()
         # history.insert(0, self.system_prompt)
@@ -720,5 +727,5 @@ async def main():
     # print(await session.ask("A teď ho zopakuj."))
 
 # asyncio.run(main())
-asyncio.get_running_loop().create_task(main())
+# asyncio.get_running_loop().create_task(main())
 # print(dir(llm))

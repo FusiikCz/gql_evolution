@@ -6,7 +6,7 @@ import dataclasses
 import fastmcp
 from fastmcp.tools.tool import ToolResult, TextContent
 
-from .mcpserver import mcp
+from .mcpserver import mcp, createGQLClient
 from main_ai import azureCompletions
 
 import main_mcp.prompts

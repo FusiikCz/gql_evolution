@@ -3,6 +3,9 @@ fastapi[all]
 uvicorn[standard]
 gunicorn
 
+strawberry-graphql[fastapi] #moje navíc
+git+https://github.com/hrbolek/uoishelpers.git
+
 asyncpg
 sqlalchemy-cockroachdb
 

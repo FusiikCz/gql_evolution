@@ -13,7 +13,7 @@ from src.GraphTypeDefinitions import schema
 from main_ai import ChatSession, MCPRouter, RouterContext, FilterType
 import fastmcp
 
-MCPURL = "http://localhost:8002/mcp_no_sse"
+MCPURL = "http://localhost:8000/mcp_no_sse"
 
 import traceback
 
@@ -395,11 +395,14 @@ ComponentIndex = {
 async def index_page():
     chatSession = ChatSession()
     mcpClient = fastmcp.Client(MCPURL)
-    from main_mcp import createGQLClient
-    gqlClient = await createGQLClient(
-        username="john.newbie@world.com",
-        password="john.newbie@world.com"
-    )
+    # Skip GraphQL client for now - we'll implement it later
+    # from main_mcp import createGQLClient
+    # gqlClient = await createGQLClient(
+    #     url="http://localhost:8000/gql",
+    #     username="john.newbie@world.com",
+    #     password="john.newbie@world.com"
+    # )
+    gqlClient = None
 
     async with mcpClient:
         # result["tool.response"] = await client.call_tool("echo", {"text": "hello"})

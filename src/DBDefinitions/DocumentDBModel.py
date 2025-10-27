@@ -31,23 +31,23 @@ class DocumentModel(BaseModel):
     children_attribute_name = "subdocuments"
 
     # Materialized path technique
-    path: Mapped[str] = mapped_column(
+    path: Mapped[typing.Optional[str]] = mapped_column(
         index=True,
         nullable=True,
         default=None,
         comment="Materialized path technique, not implemented"
     )
 
-    name: Mapped[str] = mapped_column(default=None, nullable=True)
-    name_en: Mapped[str] = mapped_column(default=None, nullable=True)
-    description: Mapped[str] = mapped_column(default=None, nullable=True)
-    url: Mapped[str] = mapped_column(default=None, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
-    embedding_location: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
+    name_en: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
+    description: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
+    url: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False, default_factory=list)
+    embedding_location: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
     
     # the real column in the DB
     masterdocument_id: Mapped[IDType] = mapped_column(
-        ForeignKey("documents_evolution.id"),
+        ForeignKey("document_evolution.id"),
         nullable=True,
         default=None,
         index=True,
