@@ -5,9 +5,10 @@ from .EventInvitationGQLModel import EventInvitationQuery
 from .ApiKeyGQLModel import ApiKeyQuery
 from .UsageGQLModel import UsageQuery
 from .UserGQLModel import UserQuery
+from .DocumentGQLModel import DocumentQuery
 
 @strawberry.type(description="""Type for query root""")
-class Query(EventQuery, EventInvitationQuery, ApiKeyQuery, UsageQuery, UserQuery):
+class Query(EventQuery, EventInvitationQuery, ApiKeyQuery, UsageQuery, UserQuery, DocumentQuery):
     @strawberry.field(
         description="""Returns hello world"""
         )

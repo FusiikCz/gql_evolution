@@ -24,8 +24,8 @@ from .BaseModel import BaseModel, UUIDColumn, UUIDFKey, IDType
 ###########################################################################################################################
 
 class ApiKeyModel(BaseModel):
-    __tablename__ = "api_keys"
-
+    __tablename__ = "api_keys" 
+    # TODO: nadefinovat do jsonu systemdata.json    
     # Basic identification
     name: Mapped[typing.Optional[str]] = mapped_column(String(120), nullable=True, default=None, comment="Human-readable name for the API key")
     prefix: Mapped[str] = mapped_column(String(32), index=True, nullable=False, default="", comment="Prefix of the API key for identification")

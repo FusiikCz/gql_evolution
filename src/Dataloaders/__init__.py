@@ -8,6 +8,7 @@ from src.DBDefinitions import (
     ApiKeyModel,
     UsageModel,
     UserModel,
+    DocumentModel,
 )
 
 from uoishelpers.dataloaders.LoaderMapBase import LoaderMapBase
@@ -25,6 +26,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
     ApiKeyModel: IDLoader[src.DBDefinitions.ApiKeyModel] = None
     UsageModel: IDLoader[src.DBDefinitions.UsageModel] = None
     UserModel: IDLoader[src.DBDefinitions.UserModel] = None
+    DocumentModel: IDLoader[src.DBDefinitions.DocumentModel] = None
 
 
     def __init__(self, session):
@@ -35,6 +37,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
         self.ApiKeyModel = self.get(ApiKeyModel)
         self.UsageModel = self.get(UsageModel)
         self.UserModel = self.get(UserModel)
+        self.DocumentModel = self.get(DocumentModel)
 
         # print(f"LoaderMap created with session: {session}")
 

@@ -38,5 +38,47 @@
                    "changedby_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
             "rbacobject_id": "72f0f5ee-10b1-4e2d-b873-b60201f94de8"
         }
+    ],
+    "api_keys": [
+        {
+            "id": "80cf2f68-308f-4393-8690-f9eb61f2f955",
+            "created": "2024-10-01T08:00:00.000000",
+            "lastchange": "2024-10-13T12:30:00.000000",
+            "__typename": "ApiKeyGQLModel",
+            "user_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "name": "Jan's Production Key",
+            "prefix": "jkey",
+            "key_hash": "hashed_value_1",
+            "is_active": true,
+            "expires_at": null,
+            "rate_limit_per_minute": 100,
+            "rate_limit_per_hour": 5000,
+            "rate_limit_per_day": 100000,
+            "max_tokens_per_month": 1000000,
+            "max_cost_per_month": 100.0,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "5cee7666-6543-4989-ade1-1d101b80b30c",
+            "created": "2024-10-02T09:00:00.000000",
+            "lastchange": "2024-10-14T10:15:00.000000",
+            "__typename": "ApiKeyGQLModel",
+            "user_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
+            "name": "Marie's Testing Key",
+            "prefix": "mkey",
+            "key_hash": "hashed_value_2",
+            "is_active": true,
+            "expires_at": null,
+            "rate_limit_per_minute": 50,
+            "rate_limit_per_hour": 2500,
+            "rate_limit_per_day": 50000,
+            "max_tokens_per_month": 500000,
+            "max_cost_per_month": 50.0,
+            "createdby_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
+            "changedby_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
+            "rbacobject_id": "72f0f5ee-10b1-4e2d-b873-b60201f94de8"
+        }
     ]
 }

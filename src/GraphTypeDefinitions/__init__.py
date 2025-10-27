@@ -18,11 +18,14 @@ from .BaseGQLModel import BaseGQLModel
 from .UserGQLModel import UserGQLModel
 from .ApiKeyGQLModel import ApiKeyGQLModel
 from .UsageGQLModel import UsageGQLModel
+from .DocumentGQLModel import DocumentGQLModel
+from .EventGQLModel import EventGQLModel
+from .EventInvitationGQLModel import EventInvitationGQLModel
 
 schema = strawberry.federation.Schema(
     query=Query,
     mutation=Mutation,
-    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, UsageGQLModel), 
+    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, UsageGQLModel, DocumentGQLModel, EventGQLModel, EventInvitationGQLModel), 
     scalar_overrides={datetime.timedelta: timedelta._scalar_definition},
 
     extensions=[],

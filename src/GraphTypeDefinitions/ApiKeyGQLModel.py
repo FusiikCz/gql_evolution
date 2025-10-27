@@ -71,15 +71,21 @@ class ApiKeyGQLModel(BaseGQLModel):
     def getLoader(cls, info: strawberry.types.Info):
         return getLoadersFromInfo(info).ApiKeyModel
 
-    # API Key specific fields
+    # API Key specific fields - Order must match DBModel EXACTLY
+    # name first (from DBModel)
     name: typing.Optional[str] = strawberry.field(
         default=None,
         description="""Human-readable name for the API key""",
         permission_classes=[OnlyForAuthentized]
     )
-
+    
     prefix: str = strawberry.field(
         description="""Prefix of the API key for identification""",
+        permission_classes=[OnlyForAuthentized]
+    )
+
+    key_hash: str = strawberry.field(
+        description="""Hash of the API key for secure storage""",
         permission_classes=[OnlyForAuthentized]
     )
 
