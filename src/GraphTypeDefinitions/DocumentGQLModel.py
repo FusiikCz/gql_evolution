@@ -39,6 +39,8 @@ from .BaseGQLModel import BaseGQLModel, IDType, Relation
 DocumentFragmentGQLModel = typing.Annotated["DocumentFragmentGQLModel", strawberry.lazy(".DocumentFragmentGQLModel")]
 DocumentFragmentInputFilter = typing.Annotated["DocumentFragmentInputFilter", strawberry.lazy(".DocumentFragmentGQLModel")]
 
+from .VectorFilters import VectorFilter
+
 @createInputs2
 class DocumentInputFilter:
     name: str
@@ -46,6 +48,16 @@ class DocumentInputFilter:
     description: str
     id: IDType
     
+    embedding: typing.Optional[VectorFilter] = strawberry.field(
+        default=None,
+        description="""Vector similarity filter for AI embeddings.
+        Use _similarity to find documents similar to a given embedding vector.
+        Use _distance to find documents within a certain distance.
+        Example: {"embedding": {"_similarity": {"vector": [...], "threshold": 0.8}}}
+        This enables semantic search: find documents with similar meaning to a query vector.
+        The vector dimension must match stored embeddings (typically 768 or 1536 dimensions)."""
+    )
+
 
 @strawberry.federation.type(
     description="""Entity representing a Document""",
@@ -112,7 +124,8 @@ class DocumentGQLModel(BaseGQLModel):
 
     masterdocument_id: typing.Optional[IDType] = strawberry.field(
         default=None,
-        description="""Document parent id""",
+        description="""Document parent id - foreign key to parent Document entity for hierarchical document structure.
+        @relation(to: DocumentGQLModel, field: 'id')""",
         permission_classes=[
             OnlyForAuthentized
         ]
@@ -165,7 +178,8 @@ from uoishelpers.resolvers import TreeInputStructureMixin, InputModelMixin
 class DocumentInsertGQLModel(TreeInputStructureMixin):
     getLoader = DocumentGQLModel.getLoader
     masterdocument_id: IDType = strawberry.field(
-        description="""Document parent id""",
+        description="""Document parent id - foreign key to parent Document entity for hierarchical structure.
+        @relation(to: DocumentGQLModel, field: 'id')""",
         # default=None
     )
     name: typing.Optional[str] = strawberry.field(

@@ -57,7 +57,17 @@ for field "user_invitations" the filters could be
 """)
 
 @strawberry.federation.type(
-    description="""Entity representing a Event""",
+    description="""Entity representing an Event in the system.
+Events can represent various occurrences like courses, meetings, exams, seminars, workshops, etc.
+Events have hierarchical structure through masterevent_id (parent-child relationships) allowing nested events.
+Events can have multiple EventInvitations to invite users with different states (invited, accepted, declined).
+Events can be associated with Documents and have date ranges (startdate, enddate) for scheduling.
+Example use cases: 
+- "Find all events for group 23-5KB" 
+- "Get schedule for faculty X"
+- "List all events where user is invited"
+- "Find events happening in date range"
+Use EventInputFilter with filters like name, startdate, enddate, valid, and nested user_invitations filters.""",
     keys=["id"]
 )
 class EventGQLModel(BaseGQLModel):
@@ -186,8 +196,10 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
     )
 
     facility_id: typing.Optional[IDType] = strawberry.field(
+        description="""Facility identifier - foreign key to Facility entity (currently not implemented as separate type).
+        Use this to reference the facility/location where the event takes place.
+        @relation(to: FacilityGQLModel, field: 'id')""",
         default=None,
-        description="place where the event will happen, defined by id",
         permission_classes=[
             OnlyForAuthentized
         ],

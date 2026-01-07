@@ -12,6 +12,7 @@ from .ApiKeyDBModel import ApiKeyModel
 from .UsageDBModel import UsageModel
 from .UserDBModel import UserModel
 from .DocumentDBModel import DocumentModel, DocumentFragmentModel
+from .EndpointConfigDBModel import EndpointConfigModel
 
 async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     """Provede nezbytne ukony a vrati asynchronni SessionMaker"""

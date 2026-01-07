@@ -40,6 +40,12 @@ class UsageModel(BaseModel):
     api_key_id: Mapped[IDType] = UUIDFKey(ForeignKey("api_keys.id"), comment="API key that was used")
     # api_key relationship removed to avoid SQLAlchemy issues
     # api_key will be accessed via GraphQL resolvers instead
+    
+    # Endpoint configuration relationship
+    endpoint_config_id: Mapped[typing.Optional[IDType]] = UUIDFKey(
+        ForeignKey("endpoint_configs.id"),
+        comment="Endpoint configuration that was used for this request (optional)"
+    )
 
     # Request details
     route: Mapped[typing.Optional[str]] = mapped_column(String(128), nullable=True, default=None, comment="API route that was called")
@@ -72,6 +78,9 @@ class UsageModel(BaseModel):
         
         # Index for API key usage queries
         Index('ix_usage_api_key_ts', 'api_key_id', 'ts'),
+        
+        # Index for endpoint configuration queries
+        Index('ix_usage_endpoint_config_ts', 'endpoint_config_id', 'ts'),
         
         # Index for cost tracking
         Index('ix_usage_cost_ts', 'cost_usd', 'ts'),

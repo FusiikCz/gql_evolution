@@ -130,17 +130,20 @@ from uoishelpers.resolvers import InputModelMixin
 class EventInvitationInsertGQLModel(InputModelMixin):
     getLoader = EventInvitationGQLModel.getLoader
     event_id: typing.Optional[IDType] = strawberry.field(
-        description="event id to which invitation is sent",
+        description="""Event id to which invitation is sent - foreign key to Event entity.
+        @relation(to: EventGQLModel, field: 'id')""",
         default=None,
     )
 
     user_id: typing.Optional[IDType] = strawberry.field(
-        description="user id who receive invitation",
+        description="""User id who receive invitation - foreign key to User entity.
+        @relation(to: UserGQLModel, field: 'id')""",
         default=None,
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
-        description="invitation kind",
+        description="""Invitation state identifier (hardcoded UUID values, not a foreign key).
+        Represents invitation kind and presence type (invited, accepted, declined, etc.).""",
         default=None
     )
 
@@ -162,7 +165,8 @@ class EventInvitationUpdateGQLModel:
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
-        description="invitation kind and presence type",
+        description="""Invitation state identifier (hardcoded UUID values, not a foreign key).
+        Represents invitation kind and presence type (invited, accepted, declined, etc.).""",
         default=None
     )
 
@@ -302,7 +306,7 @@ class EventInvitationMutation:
         return UpdateError[EventInvitationGQLModel](
             _entity=db_row,
             msg="You are not authorized",
-            code="48f0a626-f31a-4429-9e53-819ca865786d",
+            code="NOT_AUTHORIZED",
             location="event_invitation_accept_decline",
             _input=invitation
         )
@@ -371,7 +375,7 @@ class EventInvitationMutation:
         return UpdateError[EventInvitationGQLModel](
             _entity=db_row,
             msg="You are not organizer",
-            code="ae30e32b-94ec-4d59-9c1e-7eca3b75701e",
+            code="NOT_ORGANIZER",
             location="event_invitation_update",
             _input=invitation
         )

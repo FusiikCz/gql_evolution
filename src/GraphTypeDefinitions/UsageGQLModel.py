@@ -187,7 +187,8 @@ class UsageGQLModel(BaseGQLModel):
     # Foreign key field
     api_key_id: typing.Optional[IDType] = strawberry.field(
         default=None,
-        description="""API Key that was used for this request""",
+        description="""API Key that was used for this request - foreign key to ApiKey entity.
+        @relation(to: ApiKeyGQLModel, field: 'id')""",
         permission_classes=[OnlyForAuthentized]
     )
 
