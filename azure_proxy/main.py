@@ -48,7 +48,7 @@ USAGE_LOG_STDOUT = os.getenv("USAGE_LOG_STDOUT", "true").lower() == "true"
 _usage_lock = asyncio.Lock()
 def _now_iso():
     import datetime as _dt
-    return _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds") + "Z"
 
 async def log_usage_record(record: dict):
     """Zapíše jednu řádku s usage do JSONL + volitelně na stdout."""
