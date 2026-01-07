@@ -636,6 +636,14 @@ class ApiKeyMutation:
         if isinstance(result, InsertError):
             return result
         
+        # Audit logging for critical operation
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"AUDIT: api_key_insert - user_id={user_id}, api_key_id={result.id}, "
+            f"name={api_key.name}, expires_at={api_key.expires_at}"
+        )
+        
         # Return response with plaintext key (shown only once)
         return ApiKeyInsertResponse(
             api_key=result,
@@ -840,6 +848,16 @@ class ApiKeyMutation:
             await session.commit()
             await session.refresh(db_key)
             
+            # Audit logging for critical operation
+            import logging
+            from uoishelpers.resolvers import getUserFromInfo
+            logger = logging.getLogger(__name__)
+            user = getUserFromInfo(info)
+            user_id = user.id if user and hasattr(user, 'id') else (user.get('id') if user and isinstance(user, dict) else None)
+            logger.info(
+                f"AUDIT: api_key_regenerate - user_id={user_id}, api_key_id={api_key.id}"
+            )
+            
             # Convert to GQL model
             gql_key = ApiKeyGQLModel.from_dataclass(db_key)
             
@@ -882,37 +900,45 @@ class ApiKeyMutation:
         # Get database session from context
         async_session_maker = info.context["asyncSessionMaker"]
         async with async_session_maker() as session:
-            # Find expired but still active API keys
-            stmt = select(ApiKeyModel).where(
-                ApiKeyModel.is_active == True,
-                ApiKeyModel.expires_at.isnot(None),
-                ApiKeyModel.expires_at < now
-            )
-            
-            result = await session.execute(stmt)
-            expired_keys = result.scalars().all()
-            
-            if not expired_keys:
-                logger.info("deactivate_expired_api_keys: No expired keys found")
-                return 0
-            
-            # Deactivate them in bulk
-            count = 0
-            deactivated_key_ids = []
-            now_db = datetime.datetime.now(datetime.timezone.utc)
-            for key in expired_keys:
-                key.is_active = False
-                key.lastchange = now_db
-                deactivated_key_ids.append(str(key.id))
-                count += 1
-            
-            await session.commit()
-            
-            # Log for audit trail
-            logger.info(
-                f"deactivate_expired_api_keys: Deactivated {count} expired API keys. "
-                f"Key IDs: {', '.join(deactivated_key_ids[:10])}"
-                + (f" (and {len(deactivated_key_ids) - 10} more)" if len(deactivated_key_ids) > 10 else "")
-            )
-            
-            return count
+            try:
+                # Start explicit transaction
+                async with session.begin():
+                    # Find expired but still active API keys
+                    stmt = select(ApiKeyModel).where(
+                        ApiKeyModel.is_active == True,
+                        ApiKeyModel.expires_at.isnot(None),
+                        ApiKeyModel.expires_at < now
+                    )
+                    
+                    result = await session.execute(stmt)
+                    expired_keys = result.scalars().all()
+                    
+                    if not expired_keys:
+                        logger.info("deactivate_expired_api_keys: No expired keys found")
+                        return 0
+                    
+                    # Deactivate them in bulk
+                    count = 0
+                    deactivated_key_ids = []
+                    now_db = datetime.datetime.now(datetime.timezone.utc)
+                    for key in expired_keys:
+                        key.is_active = False
+                        key.lastchange = now_db
+                        deactivated_key_ids.append(str(key.id))
+                        count += 1
+                    
+                    # Transaction will commit automatically on exit from context manager
+                    # If any error occurs, it will rollback automatically
+                    
+                    # Log for audit trail
+                    logger.info(
+                        f"deactivate_expired_api_keys: Deactivated {count} expired API keys. "
+                        f"Key IDs: {', '.join(deactivated_key_ids[:10])}"
+                        + (f" (and {len(deactivated_key_ids) - 10} more)" if len(deactivated_key_ids) > 10 else "")
+                    )
+                    
+                    return count
+            except Exception as e:
+                # Log error and re-raise - transaction will rollback automatically
+                logger.error(f"deactivate_expired_api_keys: Error during bulk deactivation: {e}")
+                raise

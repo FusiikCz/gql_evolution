@@ -12,6 +12,7 @@ from .ApiKeyDBModel import ApiKeyModel
 from .UsageDBModel import UsageModel
 from .UserDBModel import UserModel
 from .DocumentDBModel import DocumentModel, DocumentFragmentModel
+from .EndpointConfigDBModel import EndpointConfigModel
 
 async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     """Provede nezbytne ukony a vrati asynchronni SessionMaker"""
@@ -24,6 +25,15 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
 
         # Create pgvector extension BEFORE creating tables
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
+        
+        # Fix: Remove duplicate indexes that may have been created
+        # This fixes the issue where token_prefix had both index=True and explicit Index in __table_args__
+        try:
+            await conn.exec_driver_sql("DROP INDEX IF EXISTS ix_endpoint_configs_token_prefix;")
+            logging.debug("Removed duplicate index ix_endpoint_configs_token_prefix if it existed")
+        except Exception as e:
+            # Ignore errors - index might not exist
+            logging.debug(f"Could not drop duplicate index (may not exist): {e}")
 
         if makeUp:
             try:
@@ -55,6 +65,15 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
                 logging.error(f"Unable to automatically create tables: {e}")
                 logging.error("Unable automatically create tables")
                 return None
+            except sqlalchemy.exc.ProgrammingError as e:
+                # Handle duplicate index/table errors gracefully
+                error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                if "already exists" in error_str.lower() or "duplicate" in error_str.lower():
+                    logging.warning(f"Database object already exists (ignoring): {error_str}")
+                    # Continue - this is not a fatal error
+                else:
+                    # Re-raise if it's a different programming error
+                    raise
             
 
     async_sessionMaker = async_sessionmaker(

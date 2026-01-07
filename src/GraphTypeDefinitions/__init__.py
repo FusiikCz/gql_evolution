@@ -22,11 +22,12 @@ from .DocumentGQLModel import DocumentGQLModel
 from .DocumentFragmentGQLModel import DocumentFragmentGQLModel
 from .EventGQLModel import EventGQLModel
 from .EventInvitationGQLModel import EventInvitationGQLModel
+from .EndpointConfigGQLModel import EndpointConfigGQLModel
 
 schema = strawberry.federation.Schema(
     query=Query,
     mutation=Mutation,
-    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, ApiKeyInsertResponse, UsageGQLModel, DocumentGQLModel, DocumentFragmentGQLModel, EventGQLModel, EventInvitationGQLModel), 
+    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, ApiKeyInsertResponse, UsageGQLModel, DocumentGQLModel, DocumentFragmentGQLModel, EventGQLModel, EventInvitationGQLModel, EndpointConfigGQLModel), 
     scalar_overrides={datetime.timedelta: timedelta._scalar_definition},
 
     extensions=[],

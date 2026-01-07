@@ -130,7 +130,7 @@ def compute_cost_usd(*, model: str | None, prompt_tokens: int | None, completion
     except Exception:
         return None
 # endregion
-#test
+
 # region Metrics (Prometheus)
 PROXY_REQUESTS_TOTAL = Counter(
     "azure_proxy_requests_total",
@@ -146,6 +146,19 @@ PROXY_TOKENS_TOTAL = Counter(
     "azure_proxy_tokens_total",
     "Total tokens observed in OpenAI/Azure usage payload",
     ["route", "kind"],  # prompt|completion|total
+)
+
+# Additional metrics for endpoint tracking
+PROXY_ENDPOINT_REQUESTS_TOTAL = Counter(
+    "azure_proxy_endpoint_requests_total",
+    "Total number of requests per endpoint configuration",
+    ["endpoint_config_id", "route", "status"]
+)
+
+PROXY_ENDPOINT_COST_TOTAL = Counter(
+    "azure_proxy_endpoint_cost_total",
+    "Total cost per endpoint configuration in USD",
+    ["endpoint_config_id", "route"]
 )
 # endregion
 
@@ -221,6 +234,7 @@ async def require_client_api_key(request: Request) -> ApiKey:
     Klíč uloží do request.state.api_key pro pozdější použití.
     """
     token = await _extract_client_api_token(request)
+    key = None
     async with AsyncSessionMaker() as db:
         try:
             key = await require_api_key(db, token)
@@ -232,6 +246,10 @@ async def require_client_api_key(request: Request) -> ApiKey:
             if status == 429:
                 PROXY_RATE_LIMIT_HITS_TOTAL.labels(route=request.url.path).inc()
             raise HTTPException(status_code=status, detail=msg)
+    
+    # Only set and return key if authentication succeeded
+    if key is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     request.state.api_key = key
     return key
 
@@ -353,7 +371,7 @@ async def forward_nonstream(
                             completion_tokens=ct if isinstance(ct, int) else None,
                         )
                         async with AsyncSessionMaker() as db:
-                            await record_usage(
+                            usage_record = await record_usage(
                                 db,
                                 api_key=api_key,
                                 route=routelabel,
@@ -367,10 +385,26 @@ async def forward_nonstream(
                                 stream_bytes=None,
                                 cost_usd=cost_usd,
                                 meta={"idempotency_key": idempotency_key},
+                                base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
                             )
+                            # Increment endpoint-specific metrics if endpoint_config_id was found
+                            if usage_record and usage_record.endpoint_config_id:
+                                try:
+                                    PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
+                                        endpoint_config_id=str(usage_record.endpoint_config_id),
+                                        route=routelabel,
+                                        status=str(r.status_code)
+                                    ).inc()
+                                    if cost_usd:
+                                        PROXY_ENDPOINT_COST_TOTAL.labels(
+                                            endpoint_config_id=str(usage_record.endpoint_config_id),
+                                            route=routelabel
+                                        ).inc(cost_usd)
+                                except Exception:
+                                    pass  # Ignore metric errors
                     except Exception as _e:
                         print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
-                log_res(f"OPENAI {routelabel} {r.status_code}", usage=usage)
+                log_res(r.status_code, usage=usage)
                 if data is not None:
                     return JSONResponse(status_code=r.status_code, content=data)
                 return PlainTextResponse(status_code=r.status_code, content=r.text)
@@ -478,7 +512,7 @@ async def forward_stream_with_usage(
                         completion_tokens=ct if isinstance(ct, int) else None,
                     )
                     async with AsyncSessionMaker() as db:
-                        await record_usage(
+                        usage_record = await record_usage(
                             db,
                             api_key=api_key,
                             route=route,
@@ -492,7 +526,23 @@ async def forward_stream_with_usage(
                             stream_bytes=usage_counter,
                             cost_usd=cost_usd,
                             meta={"idempotency_key": idempotency_key},
+                            base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
                         )
+                        # Increment endpoint-specific metrics if endpoint_config_id was found
+                        if usage_record and usage_record.endpoint_config_id:
+                            try:
+                                PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
+                                    endpoint_config_id=str(usage_record.endpoint_config_id),
+                                    route=route,
+                                    status=str(status_code)
+                                ).inc()
+                                if cost_usd:
+                                    PROXY_ENDPOINT_COST_TOTAL.labels(
+                                        endpoint_config_id=str(usage_record.endpoint_config_id),
+                                        route=route
+                                    ).inc(cost_usd)
+                            except Exception:
+                                pass  # Ignore metric errors
                 except Exception as _e:
                     print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
         except Exception as _e:
@@ -534,10 +584,7 @@ async def openai_v1_chat_completions_general(
     if model:
         deployment = resolve_deployment_from_model(model)    
     elif deployment is None:
-        if isinstance(model, str) and model.strip():
-            deployment = resolve_deployment_from_model(model)
-        else:
-            raise HTTPException(status_code=400, detail="Missing 'model' (or explicit deployment)")
+        raise HTTPException(status_code=400, detail="Missing 'model' (or explicit deployment)")
     
     if useforce and endpoint == "chat":
         body = maybe_force_json_response(body)  # volitelný forcing JSON output

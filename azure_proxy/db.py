@@ -3,11 +3,12 @@
 from __future__ import annotations
 import os
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional, Iterable, Literal
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Import main DB models and utilities
@@ -23,6 +24,9 @@ from src.Utils.api_key_utils import hash_token, generate_api_key, verify_token
 
 # Import API_KEY_PREFIX_LEN from utils for compatibility
 from src.Utils.api_key_utils import API_KEY_PREFIX_LEN
+
+# Type alias for ID
+IDType = uuid.UUID
 
 # ---------- DB engine ----------
 # Use main DB connection string, but allow override via DATABASE_URL for backward compatibility
@@ -72,14 +76,20 @@ async def init_db() -> None:
                 await conn.run_sync(BaseModel.metadata.create_all)
     else:
         # Use main DB connection
-        if isinstance(AsyncSessionMaker, LazyAsyncSessionMaker):
+        # Check if AsyncSessionMaker has _maker attribute (LazyAsyncSessionMaker instance)
+        # LazyAsyncSessionMaker is defined locally in the else block above, so we use hasattr
+        if hasattr(AsyncSessionMaker, '_maker'):
+            # Initialize the lazy session maker
+            # This sets AsyncSessionMaker._maker to the actual session maker
             await AsyncSessionMaker._ensure_initialized()
-            # Replace the lazy wrapper with the actual session maker
-            AsyncSessionMaker = AsyncSessionMaker._maker
+            # The _maker is now set, so AsyncSessionMaker.__call__() will work correctly
+            # We keep the LazyAsyncSessionMaker wrapper, but with initialized _maker
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     """Get database session."""
-    if AsyncSessionMaker is None:
+    # Check if AsyncSessionMaker is a LazyAsyncSessionMaker that needs initialization
+    # LazyAsyncSessionMaker has a _maker attribute that is None until initialized
+    if hasattr(AsyncSessionMaker, '_maker') and AsyncSessionMaker._maker is None:
         await init_db()
     async with AsyncSessionMaker() as s:
         yield s
@@ -179,6 +189,52 @@ async def check_rate_limits(db: AsyncSession, *, api_key: ApiKeyModel) -> None:
             raise ApiKeyAuthError("Monthly cost quota exceeded")
 
 # ---------- Usage recording ----------
+async def get_endpoint_config_by_route(
+    db: AsyncSession,
+    route: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> Optional[IDType]:
+    """
+    Find endpoint configuration ID by route and base_url.
+    
+    Args:
+        db: Database session
+        route: Route path (e.g., "openai_v1_chat_completions")
+        base_url: Base URL (e.g., "https://api.openai.com/v1")
+        
+    Returns:
+        Endpoint configuration ID or None if not found
+    """
+    if not route and not base_url:
+        return None
+    
+    try:
+        from src.DBDefinitions import EndpointConfigModel
+        from sqlalchemy import select, or_
+        
+        conditions = []
+        if route:
+            # Try to match by route pattern in name or description
+            conditions.append(EndpointConfigModel.name.ilike(f"%{route}%"))
+        if base_url:
+            conditions.append(EndpointConfigModel.base_url == base_url)
+        
+        if not conditions:
+            return None
+        
+        stmt = select(EndpointConfigModel.id).where(
+            EndpointConfigModel.is_active == True,
+            or_(*conditions)
+        ).limit(1)
+        
+        result = await db.execute(stmt)
+        endpoint_id = result.scalar_one_or_none()
+        return endpoint_id
+    except Exception as e:
+        # If EndpointConfigModel doesn't exist or other error, return None
+        logging.debug(f"Could not find endpoint config: {e}")
+        return None
+
 async def record_usage(
     db: AsyncSession,
     *,
@@ -195,13 +251,21 @@ async def record_usage(
     stream_bytes: Optional[int] = None,  # Note: Not stored in UsageModel, but kept for API compatibility
     cost_usd: Optional[float] = None,
     meta: Optional[dict] = None,  # Note: Not stored in UsageModel, but can use request_id if needed
+    endpoint_config_id: Optional[IDType] = None,  # Endpoint configuration ID
+    base_url: Optional[str] = None,  # Base URL for auto-detection of endpoint_config_id
 ) -> UsageModel:
     """
     Record usage in database.
     
     Note: stream_bytes and meta are not stored in UsageModel.
     If meta is provided, it can be stored in request_id field as JSON string.
+    
+    If endpoint_config_id is not provided, it will be auto-detected from route and base_url.
     """
+    # Auto-detect endpoint_config_id if not provided
+    if endpoint_config_id is None and (route or base_url):
+        endpoint_config_id = await get_endpoint_config_by_route(db, route=route, base_url=base_url)
+    
     # Store meta in request_id if provided (as JSON string)
     request_id = None
     if meta:
@@ -223,9 +287,16 @@ async def record_usage(
         total_tokens=total_tokens,
         cost_usd=cost_usd,
         request_id=request_id,  # Store meta here if provided
+        endpoint_config_id=endpoint_config_id,  # Endpoint configuration ID
     )
     db.add(u)
-    api_key.last_used_at = datetime.now(timezone.utc)
+    
+    # Update api_key.last_used_at - merge the detached instance into current session
+    # to avoid DetachedInstanceError when modifying attributes
+    # Note: merge() is synchronous in SQLAlchemy async sessions
+    api_key_merged = db.merge(api_key)
+    api_key_merged.last_used_at = datetime.now(timezone.utc)
+    
     await db.commit()
     await db.refresh(u)
     return u
