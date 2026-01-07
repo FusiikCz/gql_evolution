@@ -130,7 +130,7 @@ def compute_cost_usd(*, model: str | None, prompt_tokens: int | None, completion
     except Exception:
         return None
 # endregion
-
+#test
 # region Metrics (Prometheus)
 PROXY_REQUESTS_TOTAL = Counter(
     "azure_proxy_requests_total",
