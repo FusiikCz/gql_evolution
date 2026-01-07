@@ -20,7 +20,7 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     async with asyncEngine.begin() as conn:
         if makeDrop:
             await conn.run_sync(BaseModel.metadata.drop_all)
-            print("BaseModel.metadata.drop_all finished")
+            logging.info("BaseModel.metadata.drop_all finished")
 
         # Create pgvector extension BEFORE creating tables
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -28,30 +28,32 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
         if makeUp:
             try:
                 await conn.run_sync(BaseModel.metadata.create_all)
-                print("BaseModel.metadata.create_all finished")
+                logging.info("BaseModel.metadata.create_all finished")
                 
                 # Fix: Ensure embedding columns are nullable (pgvector may create NOT NULL by default)
                 try:
                     await conn.exec_driver_sql(
                         "ALTER TABLE document_evolution ALTER COLUMN embedding DROP NOT NULL;"
                     )
-                    print("Fixed document_evolution.embedding to be nullable")
+                    logging.info("Fixed document_evolution.embedding to be nullable")
                 except Exception as e:
                     # Table might not exist or column might already be nullable
+                    logging.debug(f"Could not alter document_evolution.embedding: {e}")
                     pass
                     
                 try:
                     await conn.exec_driver_sql(
                         "ALTER TABLE document_fragments ALTER COLUMN embedding DROP NOT NULL;"
                     )
-                    print("Fixed document_fragments.embedding to be nullable")
+                    logging.info("Fixed document_fragments.embedding to be nullable")
                 except Exception as e:
                     # Table might not exist or column might already be nullable
+                    logging.debug(f"Could not alter document_fragments.embedding: {e}")
                     pass
                     
             except sqlalchemy.exc.NoReferencedTableError as e:
-                print(e)
-                print("Unable automaticaly create tables")
+                logging.error(f"Unable to automatically create tables: {e}")
+                logging.error("Unable automatically create tables")
                 return None
             
 
