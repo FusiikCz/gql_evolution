@@ -24,3 +24,6 @@
 .env.production.local
 
 **/environment.secret.txt
+
+# gql_evolution - embedded git repository (ignored)
+gql_evolution/
