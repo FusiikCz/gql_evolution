@@ -15,6 +15,8 @@ def UUIDFKey(ForeignKeyArg=None, **kwargs):
         "nullable": True,
         "comment": "foreign key"
     }
+    if ForeignKeyArg is not None:
+        return mapped_column(ForeignKeyArg, **newkwargs)
     return mapped_column(**newkwargs)
 
 def UUIDColumn(**kwargs):

@@ -80,5 +80,51 @@
             "changedby_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
             "rbacobject_id": "72f0f5ee-10b1-4e2d-b873-b60201f94de8"
         }
+    ],
+    "document_evolution": [
+        {
+            "id": "d4e3a7c2-5f68-4cbe-9e03-3e1b6e7b2a10",
+            "created": "2024-10-05T10:00:00.000000",
+            "lastchange": "2024-10-20T09:30:00.000000",
+            "__typename": "DocumentGQLModel",
+            "name": "API Usage Guide",
+            "name_en": "API Usage Guide",
+            "description": "Step-by-step guide covering authentication, rate limits and analytics.",
+            "url": "https://example.com/docs/api-usage",
+            "masterdocument_id": null,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "041f77ab-02f2-4a9d-baa9-3f4d2f0e3e9d"
+        }
+    ],
+    "document_fragments": [
+        {
+            "id": "a0c8c3f4-4a2f-41f1-92a9-1c634551f6f4",
+            "created": "2024-10-05T10:05:00.000000",
+            "lastchange": "2024-10-20T09:30:00.000000",
+            "__typename": "DocumentFragmentGQLModel",
+            "document_id": "d4e3a7c2-5f68-4cbe-9e03-3e1b6e7b2a10",
+            "title": "Authentication",
+            "summary": "How to obtain and use API keys.",
+            "content": "Use the apiKeyInsert mutation to create a key, store the plaintext safely, and include the prefix in every request header.",
+            "order_index": 0,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "041f77ab-02f2-4a9d-baa9-3f4d2f0e3e9d"
+        },
+        {
+            "id": "f7d8d6c9-6b73-4f55-80b6-8e13af32804f",
+            "created": "2024-10-05T10:10:00.000000",
+            "lastchange": "2024-10-20T09:30:00.000000",
+            "__typename": "DocumentFragmentGQLModel",
+            "document_id": "d4e3a7c2-5f68-4cbe-9e03-3e1b6e7b2a10",
+            "title": "Analytics Overview",
+            "summary": "Available metrics for monitoring usage.",
+            "content": "Query usageStats for aggregate metrics or call the REST /analytics endpoint to retrieve pre-computed monthly totals.",
+            "order_index": 1,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "041f77ab-02f2-4a9d-baa9-3f4d2f0e3e9d"
+        }
     ]
 }

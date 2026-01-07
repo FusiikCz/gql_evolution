@@ -1,10 +1,9 @@
 import logging
 import sqlalchemy
 
-from sqlalchemy.orm import sessionmaker
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .BaseModel import BaseModel
 from .EventDBModel import EventModel
@@ -12,7 +11,7 @@ from .EventInvitationModel import EventInvitationModel
 from .ApiKeyDBModel import ApiKeyModel
 from .UsageDBModel import UsageModel
 from .UserDBModel import UserModel
-from .DocumentDBModel import DocumentModel
+from .DocumentDBModel import DocumentModel, DocumentFragmentModel
 
 async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     """Provede nezbytne ukony a vrati asynchronni SessionMaker"""
@@ -30,14 +29,34 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
             try:
                 await conn.run_sync(BaseModel.metadata.create_all)
                 print("BaseModel.metadata.create_all finished")
+                
+                # Fix: Ensure embedding columns are nullable (pgvector may create NOT NULL by default)
+                try:
+                    await conn.exec_driver_sql(
+                        "ALTER TABLE document_evolution ALTER COLUMN embedding DROP NOT NULL;"
+                    )
+                    print("Fixed document_evolution.embedding to be nullable")
+                except Exception as e:
+                    # Table might not exist or column might already be nullable
+                    pass
+                    
+                try:
+                    await conn.exec_driver_sql(
+                        "ALTER TABLE document_fragments ALTER COLUMN embedding DROP NOT NULL;"
+                    )
+                    print("Fixed document_fragments.embedding to be nullable")
+                except Exception as e:
+                    # Table might not exist or column might already be nullable
+                    pass
+                    
             except sqlalchemy.exc.NoReferencedTableError as e:
                 print(e)
                 print("Unable automaticaly create tables")
                 return None
             
 
-    async_sessionMaker = sessionmaker(
-        asyncEngine, expire_on_commit=False, class_=AsyncSession
+    async_sessionMaker = async_sessionmaker(
+        asyncEngine, expire_on_commit=False
     )
     return async_sessionMaker
 

@@ -46,6 +46,13 @@ class UsageStatsGQLModel:
     total_cost: float = strawberry.field(description="""Total cost in USD""")
     average_tokens_per_request: float = strawberry.field(description="""Average tokens per request""")
 
+@strawberry.type(description="""Usage rollup point for a time bucket""")
+class UsageRollupPointGQLModel:
+    bucket: str = strawberry.field(description="""Bucket identifier (e.g. YYYY-MM-DD or YYYY-MM-DDTHH:00Z)""")
+    requests: int = strawberry.field(description="""Number of requests in bucket""")
+    total_tokens: int = strawberry.field(description="""Total tokens in bucket""")
+    total_cost: float = strawberry.field(description="""Total cost (USD) in bucket""")
+
 @createInputs2
 class UsageInputFilter:
     id: IDType
@@ -266,6 +273,74 @@ class UsageQuery:
                 total_cost=float(row.total_cost or 0.0),
                 average_tokens_per_request=float(row.avg_tokens or 0.0)
             )
+
+    @strawberry.field(
+        description="""Time-series rollup of usage for an API key (bucket=day|hour)""",
+        permission_classes=[OnlyForAuthentized],
+    )
+    async def usage_rollup(
+        self,
+        info: strawberry.types.Info,
+        api_key_id: IDType,
+        bucket: str = "day",
+        start_date: typing.Optional[datetime.datetime] = None,
+        end_date: typing.Optional[datetime.datetime] = None,
+    ) -> typing.List[UsageRollupPointGQLModel]:
+        from sqlalchemy import select, func
+        from src.DBDefinitions import UsageModel
+
+        # defaults: last 30 days
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if end_date is None:
+            end_date = now
+        if start_date is None:
+            start_date = end_date - datetime.timedelta(days=30)
+
+        async_session_maker = info.context["asyncSessionMaker"]
+        async with async_session_maker() as session:
+            # Pick bucket expression depending on dialect (sqlite vs postgres)
+            bind = session.get_bind()
+            dialect = getattr(getattr(bind, "dialect", None), "name", "")
+            bucket_lower = (bucket or "day").lower()
+            if bucket_lower not in ("day", "hour"):
+                bucket_lower = "day"
+
+            if dialect == "sqlite":
+                if bucket_lower == "hour":
+                    bucket_expr = func.strftime("%Y-%m-%dT%H:00:00Z", UsageModel.ts)
+                else:
+                    bucket_expr = func.strftime("%Y-%m-%d", UsageModel.ts)
+            else:
+                # Postgres-friendly date_trunc + to_char
+                fmt = "YYYY-MM-DD\"T\"HH24:00:00Z" if bucket_lower == "hour" else "YYYY-MM-DD"
+                bucket_expr = func.to_char(func.date_trunc(bucket_lower, UsageModel.ts), fmt)
+
+            stmt = (
+                select(
+                    bucket_expr.label("bucket"),
+                    func.count(UsageModel.id).label("requests"),
+                    func.coalesce(func.sum(UsageModel.total_tokens), 0).label("total_tokens"),
+                    func.coalesce(func.sum(UsageModel.cost_usd), 0.0).label("total_cost"),
+                )
+                .where(
+                    UsageModel.api_key_id == api_key_id,
+                    UsageModel.ts >= start_date,
+                    UsageModel.ts <= end_date,
+                )
+                .group_by(bucket_expr)
+                .order_by(bucket_expr.asc())
+            )
+            res = await session.execute(stmt)
+            rows = res.mappings().all()
+            return [
+                UsageRollupPointGQLModel(
+                    bucket=str(r["bucket"]),
+                    requests=int(r["requests"] or 0),
+                    total_tokens=int(r["total_tokens"] or 0),
+                    total_cost=float(r["total_cost"] or 0.0),
+                )
+                for r in rows
+            ]
 
 # Input types for mutations
 from uoishelpers.resolvers import InputModelMixin

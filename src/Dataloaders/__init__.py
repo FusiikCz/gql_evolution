@@ -9,6 +9,7 @@ from src.DBDefinitions import (
     UsageModel,
     UserModel,
     DocumentModel,
+    DocumentFragmentModel,
 )
 
 from uoishelpers.dataloaders.LoaderMapBase import LoaderMapBase
@@ -27,6 +28,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
     UsageModel: IDLoader[src.DBDefinitions.UsageModel] = None
     UserModel: IDLoader[src.DBDefinitions.UserModel] = None
     DocumentModel: IDLoader[src.DBDefinitions.DocumentModel] = None
+    DocumentFragmentModel: IDLoader[src.DBDefinitions.DocumentFragmentModel] = None
 
 
     def __init__(self, session):
@@ -38,6 +40,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
         self.UsageModel = self.get(UsageModel)
         self.UserModel = self.get(UserModel)
         self.DocumentModel = self.get(DocumentModel)
+        self.DocumentFragmentModel = self.get(DocumentFragmentModel)
 
         # print(f"LoaderMap created with session: {session}")
 

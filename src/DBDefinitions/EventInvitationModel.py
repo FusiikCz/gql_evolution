@@ -21,7 +21,9 @@ class EventInvitationModel(BaseModel):
     
     event_id: Mapped[Optional[IDType]] = mapped_column(ForeignKey("events_evolution.id"), default=None, nullable=True, comment="Event assigned to the invitation")
     user_id: Mapped[Optional[IDType]] = UUIDFKey(ForeignKey("users.id"), default=None, nullable=True, comment="User assigned to the invitation")
-    state_id: Mapped[Optional[IDType]] = UUIDFKey(ForeignKey("states.id"), default=None, nullable=True, comment="State assigned to the invitation")
+    # state_id is a UUID reference to invitation states (invited, accepted, declined, etc.)
+    # States are hardcoded UUIDs, not a separate table, so no foreign key constraint
+    state_id: Mapped[Optional[IDType]] = UUIDFKey(default=None, nullable=True, comment="State assigned to the invitation (invited, accepted, declined, etc.)")
     
     # Relationships: viewonly indicates that these relationships are loaded via foreign keys.
     event = relationship(

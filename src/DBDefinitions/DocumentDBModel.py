@@ -7,6 +7,8 @@ from sqlalchemy import (
     String,
     DateTime,
     ForeignKey,
+    Text,
+    Integer,
 )
 from sqlalchemy.orm import Mapped, mapped_column, synonym
 
@@ -42,7 +44,7 @@ class DocumentModel(BaseModel):
     name_en: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
     description: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
     url: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False, default_factory=list)
+    embedding: Mapped[typing.Optional[list[float]]] = mapped_column(Vector(1536), nullable=True, default=None)
     embedding_location: Mapped[typing.Optional[str]] = mapped_column(default=None, nullable=True)
     
     # the real column in the DB
@@ -69,3 +71,34 @@ class DocumentModel(BaseModel):
         cascade="save-update"
     ) # https://docs.sqlalchemy.org/en/20/orm/self_referential.html
     # https://docs.sqlalchemy.org/en/20/_modules/examples/materialized_paths/materialized_paths.html
+
+    fragments = relationship(
+        "DocumentFragmentModel",
+        back_populates="document",
+        primaryjoin="DocumentModel.id==DocumentFragmentModel.document_id",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+
+class DocumentFragmentModel(BaseModel):
+    __tablename__ = "document_fragments"
+
+    document_id: Mapped[IDType] = UUIDFKey(
+        ForeignKey("document_evolution.id"),
+        nullable=False,
+        comment="Parent document"
+    )
+
+    title: Mapped[typing.Optional[str]] = mapped_column(String(255), default=None, nullable=True)
+    summary: Mapped[typing.Optional[str]] = mapped_column(String(1024), default=None, nullable=True)
+    content: Mapped[typing.Optional[str]] = mapped_column(Text, default=None, nullable=True)
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    embedding: Mapped[typing.Optional[list[float]]] = mapped_column(Vector(1536), nullable=True, default=None)
+
+    document = relationship(
+        "DocumentModel",
+        back_populates="fragments",
+        primaryjoin="DocumentFragmentModel.document_id==DocumentModel.id",
+        lazy="joined"
+    )

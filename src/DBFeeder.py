@@ -11,6 +11,7 @@ from src.DBDefinitions import (
     UsageModel,
     UserModel,
     DocumentModel,
+    DocumentFragmentModel,
 )
 
 get_demodata = lambda :readJsonFile(jsonFileName="./systemdata.json")
@@ -29,6 +30,7 @@ async def initDB(asyncSessionMaker, filename="./systemdata.json"):
             ApiKeyModel,
             UsageModel,
             DocumentModel,
+            DocumentFragmentModel,
         ]
         
 
