@@ -1,4 +1,5 @@
 import os
+import logging
 
 from functools import cache
 from uoishelpers.feeders import ImportModels
@@ -11,6 +12,7 @@ from src.DBDefinitions import (
     UsageModel,
     UserModel,
     DocumentModel,
+    DocumentFragmentModel,
 )
 
 get_demodata = lambda :readJsonFile(jsonFileName="./systemdata.json")
@@ -21,7 +23,7 @@ async def initDB(asyncSessionMaker, filename="./systemdata.json"):
 
     isDemo = os.environ.get("DEMODATA", None) in ["True", "true", True]
     if isDemo:
-        print("Demo mode", flush=True)
+        logging.info("Demo mode")
         dbModels = [
             EventModel, 
             EventInvitationModel,
@@ -29,13 +31,14 @@ async def initDB(asyncSessionMaker, filename="./systemdata.json"):
             ApiKeyModel,
             UsageModel,
             DocumentModel,
+            DocumentFragmentModel,
         ]
         
 
     jsonData = readJsonFile(filename)
     await ImportModels(asyncSessionMaker, dbModels, jsonData)
     
-    print("Data initialized", flush=True)
+    logging.info("Data initialized")
 
 async def backupDB(asyncSessionMaker, filename="./systemdata.backup.json"):
     import sqlalchemy
@@ -83,7 +86,7 @@ async def backupDB(asyncSessionMaker, filename="./systemdata.backup.json"):
                     if skip_this_id: continue
                     row["_chunk"] = chunk_id
                     todo.add(id)
-                print(f"{model.__tablename__} chunk {chunk_id} todo/done/all {len(todo)}/{len(done)}/{len(ids)}")
+                logging.debug(f"{model.__tablename__} chunk {chunk_id} todo/done/all {len(todo)}/{len(done)}/{len(ids)}")
                 if len(todo) == 0: break
                 done = done.union(todo)
                 todo = set()
@@ -94,4 +97,4 @@ async def backupDB(asyncSessionMaker, filename="./systemdata.backup.json"):
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False, default=str)
     
-    print("backup done", flush=True)
+    logging.info("backup done")

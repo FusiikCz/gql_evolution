@@ -29,8 +29,21 @@ class Relation:
 
 @classmethod
 async def resolve_reference(cls, info: strawberry.types.Info, id: IDType, **otherData):
+    """
+    Resolve reference for GraphQL Federation.
+    
+    Args:
+        info: GraphQL execution info
+        id: Entity ID to resolve
+        **otherData: Additional data passed by federation gateway
+        
+    Returns:
+        Resolved entity instance or None if id is None
+    """
+    if id is None:
+        return None
     _id = IDType(id) if isinstance(id, str) else id
-    return None if id is None else cls(id=_id, **otherData)
+    return cls(id=_id, **otherData)
 
 
 @strawberry.federation.interface(
@@ -45,7 +58,7 @@ class BaseGQLModel:
     @classmethod
     def from_dataclass(cls, db_row):
         db_row_dict = dataclasses.asdict(db_row)
-        print(f"from_dataclass: {db_row_dict}")
+        # Removed print() to prevent breaking JSON responses
         instance = cls(**db_row_dict)
         return instance
 

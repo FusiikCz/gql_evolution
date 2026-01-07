@@ -190,7 +190,7 @@ class EventInvitationDeleteGQLModel:
 )
 class EventInvitationMutation:
     from .EventGQLModel import EventGQLModel
-    @strawberry.field(
+    @strawberry.mutation(
         description="""Insert a EventInvitation""",
         permission_classes=[
             OnlyForAuthentized
@@ -220,10 +220,29 @@ class EventInvitationMutation:
         rbacobject_id: IDType,
         user_roles: typing.List[dict],
     ) -> typing.Union[EventInvitationGQLModel, InsertError[EventInvitationGQLModel]]:
-        # TODO check if invitation already exists and reject to invite that user again
+        from sqlalchemy import select
+        from src.DBDefinitions import EventInvitationModel
+        
+        # Check if invitation already exists for this event and user
+        if invitation.event_id and invitation.user_id:
+            async_session_maker = info.context["asyncSessionMaker"]
+            async with async_session_maker() as session:
+                stmt = select(EventInvitationModel).where(
+                    EventInvitationModel.event_id == invitation.event_id,
+                    EventInvitationModel.user_id == invitation.user_id
+                )
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
+                
+                if existing:
+                    return InsertError(
+                        msg=f"Invitation for user {invitation.user_id} to event {invitation.event_id} already exists",
+                        _input=invitation
+                    )
+        
         return await Insert[EventInvitationGQLModel].DoItSafeWay(info=info, entity=invitation)
     
-    @strawberry.field(
+    @strawberry.mutation(
         description="""Allows invited user to accept or decline the invitation""",
         permission_classes=[
             OnlyForAuthentized
@@ -239,8 +258,41 @@ class EventInvitationMutation:
         invitation: EventInvitationUpdateGQLModel,
         db_row: typing.Any,
     ) -> typing.Union[EventInvitationGQLModel, UpdateError[EventInvitationGQLModel]]:
+        """
+        Allows invited user to accept or decline the invitation.
+        
+        Only the invited user can change their invitation state to 'accepted' or 'declined'.
+        Other state changes require organizer permissions.
+        
+        Args:
+            invitation: Contains state_id to set (must be 'accepted' or 'declined')
+            db_row: Loaded EventInvitationModel instance
+            
+        Returns:
+            Updated EventInvitationGQLModel or UpdateError with authorization error
+        """
         user = getUserFromInfo(info=info)
-        if user["id"] == db_row.user_id:
+        if not user:
+            return UpdateError[EventInvitationGQLModel](
+                _entity=db_row,
+                msg="User not found in context",
+                code="USER_NOT_FOUND",
+                location="event_invitation_accept_decline",
+                _input=invitation
+            )
+        
+        # Handle both dict and object user types
+        user_id = user["id"] if isinstance(user, dict) else (user.id if hasattr(user, "id") else None)
+        if user_id is None:
+            return UpdateError[EventInvitationGQLModel](
+                _entity=db_row,
+                msg="User missing ID attribute",
+                code="USER_INVALID",
+                location="event_invitation_accept_decline",
+                _input=invitation
+            )
+        
+        if user_id == db_row.user_id:
             possible_values = set(
                 IDType('7d2ef223-b60e-4e6d-b7d5-5fdc1f8e2ec2'), # 'accepted'
                 IDType('d6a5e9e4-3e47-4c95-a4aa-b194dd2bc3a7'), # 'declined',  
@@ -273,10 +325,42 @@ class EventInvitationMutation:
         # rbacobject_id: IDType,
         # user_roles: typing.List[dict],
     ) -> typing.Union[EventInvitationGQLModel, UpdateError[EventInvitationGQLModel]]:
+        """
+        Update the EventInvitation - caller must be organizer of the event.
+        
+        Only users with organizer role for the event can update invitations.
+        Regular users can only accept/decline their own invitations via event_invitation_accept_decline.
+        
+        Args:
+            invitation: Update data for the invitation
+            db_row: Loaded EventInvitationModel instance
+            
+        Returns:
+            Updated EventInvitationGQLModel or UpdateError if not authorized
+        """
         loader = EventInvitationGQLModel.getLoader(info=info)
         event_invitations = await loader.filter_by(event_id=db_row.event_id)
         user = getUserFromInfo(info=info)
-        user_id = user["id"]
+        
+        if not user:
+            return UpdateError[EventInvitationGQLModel](
+                _entity=db_row,
+                msg="User not found in context",
+                code="USER_NOT_FOUND",
+                location="event_invitation_update",
+                _input=invitation
+            )
+        
+        # Handle both dict and object user types
+        user_id = user["id"] if isinstance(user, dict) else (user.id if hasattr(user, "id") else None)
+        if user_id is None:
+            return UpdateError[EventInvitationGQLModel](
+                _entity=db_row,
+                msg="User missing ID attribute",
+                code="USER_INVALID",
+                location="event_invitation_update",
+                _input=invitation
+            )
         organizer_id = IDType("3265a488-bbfa-4c59-946c-7a7b059ee4f0")
         user_organizer_invitations = list(filter(
             lambda row: row.user_id == user_id and row.state_id == organizer_id,
@@ -293,7 +377,7 @@ class EventInvitationMutation:
         )
 
 
-    @strawberry.field(
+    @strawberry.mutation(
         description="""Delete a EventInvitation""",
         permission_classes=[
             SimpleDeletePermission[EventInvitationGQLModel](roles=["administrátor"])

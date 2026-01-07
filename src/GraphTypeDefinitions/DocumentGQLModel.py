@@ -36,6 +36,9 @@ from uoishelpers.gqlpermissions.UserAbsoluteAccessControlExtension import UserAb
 
 from .BaseGQLModel import BaseGQLModel, IDType, Relation
 
+DocumentFragmentGQLModel = typing.Annotated["DocumentFragmentGQLModel", strawberry.lazy(".DocumentFragmentGQLModel")]
+DocumentFragmentInputFilter = typing.Annotated["DocumentFragmentInputFilter", strawberry.lazy(".DocumentFragmentGQLModel")]
+
 @createInputs2
 class DocumentInputFilter:
     name: str
@@ -83,6 +86,30 @@ class DocumentGQLModel(BaseGQLModel):
         ]
     )
 
+    url: typing.Optional[str] = strawberry.field(
+        default=None,
+        description="""Optional URL or external link associated with the document""",
+        permission_classes=[
+            OnlyForAuthentized
+        ]
+    )
+
+    embedding: typing.Optional[typing.List[float]] = strawberry.field(
+        default=None,
+        description="""Semantic vector representation of the document""",
+        permission_classes=[
+            OnlyForAuthentized
+        ]
+    )
+
+    embedding_location: typing.Optional[str] = strawberry.field(
+        default=None,
+        description="""Location identifier for the stored embedding (e.g. Azure blob path)""",
+        permission_classes=[
+            OnlyForAuthentized
+        ]
+    )
+
     masterdocument_id: typing.Optional[IDType] = strawberry.field(
         default=None,
         description="""Document parent id""",
@@ -105,6 +132,12 @@ class DocumentGQLModel(BaseGQLModel):
             OnlyForAuthentized
         ],
         resolver=VectorResolver["DocumentGQLModel"](fkey_field_name="masterdocument_id", whereType=DocumentInputFilter)
+    )
+
+    fragments: typing.List[DocumentFragmentGQLModel] = strawberry.field(
+        description="""Fragments belonging to this document""",
+        permission_classes=[OnlyForAuthentized],
+        resolver=VectorResolver[DocumentFragmentGQLModel](fkey_field_name="document_id", whereType=DocumentFragmentInputFilter)
     )
 
 
@@ -155,6 +188,21 @@ class DocumentInsertGQLModel(TreeInputStructureMixin):
         description="sub documents",
         default_factory=list
     )
+    
+    url: typing.Optional[str] = strawberry.field(
+        description="""Optional URL or external link associated with the document""",
+        default=None
+    )
+    
+    embedding: typing.Optional[typing.List[float]] = strawberry.field(
+        description="""Semantic vector representation of the document""",
+        default=None
+    )
+    
+    embedding_location: typing.Optional[str] = strawberry.field(
+        description="""Location identifier for the stored embedding (e.g. Azure blob path)""",
+        default=None
+    )
 
     rbacobject_id: strawberry.Private[IDType] = None
     createdby_id: strawberry.Private[IDType] = None
@@ -182,18 +230,22 @@ class DocumentUpdateGQLModel:
         description="""Document description""",
         default=None
     )
-    startdate: typing.Optional[datetime.datetime] = strawberry.field(
-        description="""Document start date""",
+    
+    url: typing.Optional[str] = strawberry.field(
+        description="""Optional URL or external link associated with the document""",
         default=None
     )
-    enddate: typing.Optional[datetime.datetime] = strawberry.field(
-        description="""Document end date""",
+    
+    embedding: typing.Optional[typing.List[float]] = strawberry.field(
+        description="""Semantic vector representation of the document""",
         default=None
     )
-    # parent_id: typing.Optional[IDType] = strawberry.field(
-    #     description="""Document parent id""",
-    #     default=None
-    # )
+    
+    embedding_location: typing.Optional[str] = strawberry.field(
+        description="""Location identifier for the stored embedding (e.g. Azure blob path)""",
+        default=None
+    )
+    
     changedby_id: strawberry.Private[IDType] = None
 
 @strawberry.input(
@@ -219,15 +271,15 @@ class DocumentMutation:
         ],
         extensions=[
             # UpdatePermissionCheckRoleFieldExtension[GroupGQLModel](roles=["administrátor", "personalista"]),
-            UserAccessControlExtension[UpdateError, DocumentGQLModel](
+            UserAccessControlExtension[InsertError, DocumentGQLModel](
                 roles=[
                     "plánovací administrátor", 
                     # "personalista"
                 ]
             ),
-            UserRoleProviderExtension[UpdateError, DocumentGQLModel](),
-            RbacProviderExtension[UpdateError, DocumentGQLModel](),
-            LoadDataExtension[UpdateError, DocumentGQLModel](
+            UserRoleProviderExtension[InsertError, DocumentGQLModel](),
+            RbacProviderExtension[InsertError, DocumentGQLModel](),
+            LoadDataExtension[InsertError, DocumentGQLModel](
                 getLoader=DocumentGQLModel.getLoader,
                 primary_key_name="masterdocument_id"
             )
@@ -267,7 +319,10 @@ class DocumentMutation:
     async def document_update(
         self,
         info: strawberry.Info,
-        document: DocumentUpdateGQLModel
+        document: DocumentUpdateGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
     ) -> typing.Union[DocumentGQLModel, UpdateError[DocumentGQLModel]]:
         return await Update[DocumentGQLModel].DoItSafeWay(info=info, entity=document)
     
@@ -294,7 +349,10 @@ class DocumentMutation:
     async def document_delete(
         self,
         info: strawberry.Info,
-        document: DocumentDeleteGQLModel
+        document: DocumentDeleteGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
     ) -> typing.Optional[DeleteError[DocumentGQLModel]]:
         return await Delete[DocumentGQLModel].DoItSafeWay(info=info, entity=document)
     

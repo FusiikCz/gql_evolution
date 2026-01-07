@@ -74,6 +74,11 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
     rate_limit_per_minute: Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    # Rozšířené limity a kvóty (pokud v DB existují, použijí se; jinak zůstanou None)
+    rate_limit_per_hour: Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    rate_limit_per_day: Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    max_tokens_per_month: Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    max_cost_per_month: Mapped[Optional[Float]] = mapped_column(Float, default=None)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
     user: Mapped["User"] = relationship(back_populates="keys")
@@ -90,6 +95,7 @@ class Usage(Base):
 
     route: Mapped[Optional[str]] = mapped_column(String(128), default=None)  # např. "openai_v1_responses"
     deployment: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+    model: Mapped[Optional[str]] = mapped_column(String(128), default=None)
     status: Mapped[Optional[int]] = mapped_column(Integer, default=None)
     stream: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -143,6 +149,61 @@ async def require_api_key(
         raise ApiKeyAuthError("Invalid or inactive API key")
     return key
 
+async def check_rate_limits(db: AsyncSession, *, api_key: ApiKey) -> None:
+    """
+    Zkontroluje per-minute/hour/day limity a měsíční token/cost kvóty.
+    Pokud je překročeno, vyhodí ApiKeyAuthError s popisem.
+    """
+    now = datetime.now(timezone.utc)
+
+    async def count_since(delta: timedelta) -> int:
+        q = await db.execute(
+            select(func.count(Usage.id)).where(
+                Usage.api_key_id == api_key.id,
+                Usage.ts >= (now - delta),
+            )
+        )
+        return int(q.scalar_one() or 0)
+
+    # Per-minute
+    if getattr(api_key, "rate_limit_per_minute", None):
+        used = await count_since(timedelta(minutes=1))
+        if used >= int(api_key.rate_limit_per_minute):
+            raise ApiKeyAuthError("Rate limit per minute exceeded")
+
+    # Per-hour
+    if getattr(api_key, "rate_limit_per_hour", None):
+        used = await count_since(timedelta(hours=1))
+        if used >= int(api_key.rate_limit_per_hour):
+            raise ApiKeyAuthError("Rate limit per hour exceeded")
+
+    # Per-day
+    if getattr(api_key, "rate_limit_per_day", None):
+        used = await count_since(timedelta(days=1))
+        if used >= int(api_key.rate_limit_per_day):
+            raise ApiKeyAuthError("Rate limit per day exceeded")
+
+    # Měsíční tokeny/náklady
+    if getattr(api_key, "max_tokens_per_month", None) or getattr(api_key, "max_cost_per_month", None):
+        start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        q = await db.execute(
+            select(
+                func.coalesce(func.sum(Usage.total_tokens), 0),
+                func.coalesce(func.sum(Usage.cost_usd), 0.0),
+            ).where(
+                Usage.api_key_id == api_key.id,
+                Usage.ts >= start_month,
+                Usage.ts < now + timedelta(seconds=1),
+            )
+        )
+        row = q.first()
+        total_tokens = int(row[0]) if row and row[0] is not None else 0
+        total_cost = float(row[1]) if row and row[1] is not None else 0.0
+        if getattr(api_key, "max_tokens_per_month", None) and total_tokens >= int(api_key.max_tokens_per_month):
+            raise ApiKeyAuthError("Monthly token quota exceeded")
+        if getattr(api_key, "max_cost_per_month", None) and total_cost >= float(api_key.max_cost_per_month):
+            raise ApiKeyAuthError("Monthly cost quota exceeded")
+
 # ---------- Usage recording ----------
 async def record_usage(
     db: AsyncSession,
@@ -151,6 +212,7 @@ async def record_usage(
     ts: Optional[datetime] = None,
     route: Optional[str] = None,
     deployment: Optional[str] = None,
+    model: Optional[str] = None,
     status: Optional[int] = None,
     stream: bool = False,
     prompt_tokens: Optional[int] = None,
@@ -165,6 +227,7 @@ async def record_usage(
         ts=ts or datetime.now(timezone.utc),
         route=route,
         deployment=deployment,
+        model=model,
         status=status,
         stream=stream,
         prompt_tokens=prompt_tokens,

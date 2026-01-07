@@ -65,7 +65,8 @@ class EventModel(BaseModel):
     @valid.expression
     def valid(cls):
         """Defines the SQL expression for the 'valid' property."""
-        now = datetime.datetime.utcnow()
+        # Use timezone-aware datetime for consistency (SQLAlchemy will handle the comparison)
+        now = datetime.datetime.now(datetime.timezone.utc)
         return sqlalchemy.and_(
             sqlalchemy.or_(cls.startdate <= now, cls.startdate.is_(None)),  # Valid if startdate is in the past or missing
             sqlalchemy.or_(cls.enddate >= now, cls.enddate.is_(None))       # Valid if enddate is in the future or missing

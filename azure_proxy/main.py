@@ -8,6 +8,17 @@ from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 import httpx
 
 # from db import init_db
+from .db import (
+    AsyncSessionMaker,
+    require_api_key,
+    check_rate_limits,
+    record_usage,
+    ApiKeyAuthError,
+    ApiKey,
+)
+
+import prometheus_client
+from prometheus_client import Counter
 
 # ==== Konfigurace z env ====
 UPSTREAM_ACCOUNT = os.getenv("AZURE_COGNITIVE_ACCOUNT_NAME", "")
@@ -98,6 +109,45 @@ def make_usage_record(
 
 # endregion
 
+# region Pricing (cost_usd)
+OPENAI_MODEL_PRICING_JSON = os.getenv("OPENAI_MODEL_PRICING_JSON", "")
+try:
+    # { "gpt-4o-mini": {"prompt_per_1k": 0.00015, "completion_per_1k": 0.0006}, ... }
+    MODEL_PRICING: dict[str, dict[str, float]] = json.loads(OPENAI_MODEL_PRICING_JSON) if OPENAI_MODEL_PRICING_JSON else {}
+except Exception:
+    MODEL_PRICING = {}
+
+def compute_cost_usd(*, model: str | None, prompt_tokens: int | None, completion_tokens: int | None) -> float | None:
+    if not model:
+        return None
+    p = MODEL_PRICING.get(model)
+    if not p:
+        return None
+    pt = prompt_tokens or 0
+    ct = completion_tokens or 0
+    try:
+        return (pt * float(p.get("prompt_per_1k", 0.0)) + ct * float(p.get("completion_per_1k", 0.0))) / 1000.0
+    except Exception:
+        return None
+# endregion
+
+# region Metrics (Prometheus)
+PROXY_REQUESTS_TOTAL = Counter(
+    "azure_proxy_requests_total",
+    "Total proxied requests",
+    ["route", "status"],
+)
+PROXY_RATE_LIMIT_HITS_TOTAL = Counter(
+    "azure_proxy_rate_limit_hits_total",
+    "Requests rejected by proxy rate limits",
+    ["route"],
+)
+PROXY_TOKENS_TOTAL = Counter(
+    "azure_proxy_tokens_total",
+    "Total tokens observed in OpenAI/Azure usage payload",
+    ["route", "kind"],  # prompt|completion|total
+)
+# endregion
 
 
 # --- POMOCNÉ FUNKCE PRO OPENAI KOMPAT ---
@@ -154,6 +204,35 @@ async def require_auth(request: Request):
 def redact(s: str, keep: int = 4) -> str:
     if not s: return ""
     return s[:keep] + "…" if len(s) > keep else "****"
+
+async def _extract_client_api_token(request: Request) -> str | None:
+    auth = request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    api_key = request.headers.get("X-Api-Key") or request.headers.get("x-api-key")
+    if api_key:
+        return api_key.strip()
+    return None
+
+async def require_client_api_key(request: Request) -> ApiKey:
+    """
+    Ověří klientský API klíč proti DB a zkontroluje limity.
+    Klíč uloží do request.state.api_key pro pozdější použití.
+    """
+    token = await _extract_client_api_token(request)
+    async with AsyncSessionMaker() as db:
+        try:
+            key = await require_api_key(db, token)
+            await check_rate_limits(db, api_key=key)
+        except ApiKeyAuthError as e:
+            # mapuj na HTTP kódy
+            msg = str(e) or "Unauthorized"
+            status = 429 if "limit" in msg.lower() or "quota" in msg.lower() or "exceeded" in msg.lower() else 401
+            if status == 429:
+                PROXY_RATE_LIMIT_HITS_TOTAL.labels(route=request.url.path).inc()
+            raise HTTPException(status_code=status, detail=msg)
+    request.state.api_key = key
+    return key
 
 def gen_idempotency_key(body: dict) -> str:
     # deterministicky z modelu + messages + function/tool calls …
@@ -222,7 +301,8 @@ async def forward_nonstream(
     headers: dict, 
     body: dict, 
     idempotency_key: str,
-    routelabel: str="unknown"
+    routelabel: str="unknown",
+    api_key: ApiKey | None = None,
 ) -> Response:
     # non-stream s retry
     last_exc = None
@@ -237,6 +317,10 @@ async def forward_nonstream(
                 except Exception:
                     data = None
                 usage = extract_usage(data or {})
+                try:
+                    PROXY_REQUESTS_TOTAL.labels(route=routelabel, status=str(r.status_code)).inc()
+                except Exception:
+                    pass
                 usage_record = make_usage_record(
                     route=routelabel,
                     request=request,
@@ -249,6 +333,42 @@ async def forward_nonstream(
                     upstream_headers=r.headers
                 )
                 await log_usage_record(usage_record)
+                # Persist usage do DB
+                if api_key is not None:
+                    try:
+                        model_name = body.get("model") or deployment
+                        pt = (usage or {}).get("prompt_tokens")
+                        ct = (usage or {}).get("completion_tokens")
+                        tt = (usage or {}).get("total_tokens")
+                        if isinstance(pt, int):
+                            PROXY_TOKENS_TOTAL.labels(route=routelabel, kind="prompt").inc(pt)
+                        if isinstance(ct, int):
+                            PROXY_TOKENS_TOTAL.labels(route=routelabel, kind="completion").inc(ct)
+                        if isinstance(tt, int):
+                            PROXY_TOKENS_TOTAL.labels(route=routelabel, kind="total").inc(tt)
+                        cost_usd = compute_cost_usd(
+                            model=model_name,
+                            prompt_tokens=pt if isinstance(pt, int) else None,
+                            completion_tokens=ct if isinstance(ct, int) else None,
+                        )
+                        async with AsyncSessionMaker() as db:
+                            await record_usage(
+                                db,
+                                api_key=api_key,
+                                route=routelabel,
+                                deployment=deployment,
+                                model=model_name,
+                                status=r.status_code,
+                                stream=False,
+                                prompt_tokens=pt if isinstance(pt, int) else None,
+                                completion_tokens=ct if isinstance(ct, int) else None,
+                                total_tokens=tt if isinstance(tt, int) else None,
+                                stream_bytes=None,
+                                cost_usd=cost_usd,
+                                meta={"idempotency_key": idempotency_key},
+                            )
+                    except Exception as _e:
+                        print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
                 log_res(f"OPENAI {routelabel} {r.status_code}", usage=usage)
                 if data is not None:
                     return JSONResponse(status_code=r.status_code, content=data)
@@ -279,7 +399,8 @@ async def forward_stream_with_usage(
     deployment: str | None,
     # model: str | None, 
     idempotency_key: str | None,
-    parse_responses_usage: bool
+    parse_responses_usage: bool,
+    api_key: ApiKey | None = None,
 ):
     async def _gen():
         usage_holder = None
@@ -338,6 +459,41 @@ async def forward_stream_with_usage(
                     upstream_headers=upstream_headers
                 )
             )
+            if api_key is not None:
+                try:
+                    model_name = body.get("model") or deployment
+                    pt = (usage_holder or {}).get("prompt_tokens") if isinstance(usage_holder, dict) else None
+                    ct = (usage_holder or {}).get("completion_tokens") if isinstance(usage_holder, dict) else None
+                    tt = (usage_holder or {}).get("total_tokens") if isinstance(usage_holder, dict) else None
+                    if isinstance(pt, int):
+                        PROXY_TOKENS_TOTAL.labels(route=route, kind="prompt").inc(pt)
+                    if isinstance(ct, int):
+                        PROXY_TOKENS_TOTAL.labels(route=route, kind="completion").inc(ct)
+                    if isinstance(tt, int):
+                        PROXY_TOKENS_TOTAL.labels(route=route, kind="total").inc(tt)
+                    cost_usd = compute_cost_usd(
+                        model=model_name,
+                        prompt_tokens=pt if isinstance(pt, int) else None,
+                        completion_tokens=ct if isinstance(ct, int) else None,
+                    )
+                    async with AsyncSessionMaker() as db:
+                        await record_usage(
+                            db,
+                            api_key=api_key,
+                            route=route,
+                            deployment=deployment,
+                            model=model_name,
+                            status=status_code,
+                            stream=True,
+                            prompt_tokens=pt if isinstance(pt, int) else None,
+                            completion_tokens=ct if isinstance(ct, int) else None,
+                            total_tokens=tt if isinstance(tt, int) else None,
+                            stream_bytes=usage_counter,
+                            cost_usd=cost_usd,
+                            meta={"idempotency_key": idempotency_key},
+                        )
+                except Exception as _e:
+                    print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
         except Exception as _e:
             print(f"[USAGE WARN] {type(_e).__name__}: {_e}")
 
@@ -366,6 +522,8 @@ async def openai_v1_chat_completions_general(
         raise HTTPException(status_code=404, detail="OpenAI-compatible mode disabled")
 
     await require_auth(request)
+    # Vyžaduj klientský API klíč a limity
+    api_key = await require_client_api_key(request)
     try:
         body = await request.json()
     except Exception:
@@ -408,7 +566,8 @@ async def openai_v1_chat_completions_general(
             route=routelabel,
             deployment=deployment,
             idempotency_key=idempotency_key,
-            parse_responses_usage=True
+            parse_responses_usage=True,
+            api_key=api_key
         )
     return await forward_nonstream(
         request=request,
@@ -417,7 +576,8 @@ async def openai_v1_chat_completions_general(
         headers=headers,
         body=body,
         idempotency_key=idempotency_key,
-        routelabel=routelabel
+        routelabel=routelabel,
+        api_key=api_key
     )
 
 # ============= ROUTES =============
@@ -483,6 +643,13 @@ async def openai_v1_responses(request: Request):
 @app.get("/healthcheck")
 async def healthcheck():
     return {"ok": True}
+
+@app.get("/metrics")
+async def metrics():
+    return Response(
+        content=prometheus_client.generate_latest(),
+        media_type=prometheus_client.CONTENT_TYPE_LATEST,
+    )
 
 @app.post("/llmtest/{deployment}")
 async def llmtest(

@@ -140,7 +140,7 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
     def valid_(self) -> typing.Optional[bool]:
         if self.valid is not None:
             return self.valid
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if self.startdate and self.enddate:
             return self.startdate <= now <= self.enddate
         elif self.startdate:
@@ -569,7 +569,6 @@ class EventMutation:
         db_row: typing.Any
     ) -> typing.Union[UpdateError[EventGQLModel], EventGQLModel]:
         return EventGQLModel.from_dataclass(db_row)
-        pass
 
     @strawberry.mutation(
         description="Accepts multiple reservations and if that reservations do not exist they are created",
@@ -591,7 +590,6 @@ class EventMutation:
         db_row: typing.Any
     ) -> typing.Union[UpdateError[EventGQLModel], EventGQLModel]:
         return EventGQLModel.from_dataclass(db_row)
-        pass
 
     @strawberry.mutation(
         description="""Delete a Event""",

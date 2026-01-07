@@ -207,13 +207,238 @@ class UserQuery:
         return [UserGQLModel.from_dataclass(db_row=user) for user in result]
 
 
-# Mutation interface (zatím prázdná, bude rozšířena později)
-@strawberry.interface
+# Input types for mutations
+from uoishelpers.resolvers import (
+    InsertError,
+    Insert,
+    UpdateError,
+    Update,
+    DeleteError,
+    Delete,
+    InputModelMixin
+)
+from uoishelpers.gqlpermissions import (
+    SimpleInsertPermission,
+    SimpleUpdatePermission,
+    SimpleDeletePermission
+)
+from uoishelpers.gqlpermissions.LoadDataExtension import LoadDataExtension
+from uoishelpers.gqlpermissions.RbacProviderExtension import RbacProviderExtension
+from uoishelpers.gqlpermissions.RbacInsertProviderExtension import RbacInsertProviderExtension
+from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProviderExtension
+from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
+
+@strawberry.input(
+    description="""Input type for creating a User"""
+)
+class UserInsertGQLModel(InputModelMixin):
+    getLoader = UserGQLModel.getLoader
+    
+    name: typing.Optional[str] = strawberry.field(
+        description="""Display name of the user""",
+        default=None
+    )
+    
+    email: typing.Optional[str] = strawberry.field(
+        description="""Email address of the user""",
+        default=None
+    )
+    
+    is_active: typing.Optional[bool] = strawberry.field(
+        description="""Whether the user account is active""",
+        default=True
+    )
+    
+    is_verified: typing.Optional[bool] = strawberry.field(
+        description="""Whether the user email is verified""",
+        default=False
+    )
+    
+    external_string: typing.Optional[str] = strawberry.field(
+        description="""External system user ID""",
+        default=None
+    )
+    
+    external_provider: typing.Optional[str] = strawberry.field(
+        description="""External provider (e.g., 'google', 'microsoft', 'azure')""",
+        default=None
+    )
+    
+    notes: typing.Optional[str] = strawberry.field(
+        description="""Administrative notes about the user""",
+        default=None
+    )
+    
+    timezone: typing.Optional[str] = strawberry.field(
+        description="""User's timezone (e.g., 'Europe/Prague')""",
+        default=None
+    )
+    
+    max_api_keys: typing.Optional[int] = strawberry.field(
+        description="""Maximum number of API keys this user can have""",
+        default=10
+    )
+    
+    id: typing.Optional[IDType] = strawberry.field(
+        description="""User id""",
+        default=None
+    )
+    
+    rbacobject_id: strawberry.Private[IDType] = None
+    createdby_id: strawberry.Private[IDType] = None
+
+@strawberry.input(
+    description="""Input type for updating a User"""
+)
+class UserUpdateGQLModel:
+    id: IDType = strawberry.field(
+        description="""User id"""
+    )
+    
+    lastchange: datetime.datetime = strawberry.field(
+        description="timestamp for optimistic locking"
+    )
+    
+    name: typing.Optional[str] = strawberry.field(
+        description="""Display name of the user""",
+        default=None
+    )
+    
+    email: typing.Optional[str] = strawberry.field(
+        description="""Email address of the user""",
+        default=None
+    )
+    
+    is_active: typing.Optional[bool] = strawberry.field(
+        description="""Whether the user account is active""",
+        default=None
+    )
+    
+    is_verified: typing.Optional[bool] = strawberry.field(
+        description="""Whether the user email is verified""",
+        default=None
+    )
+    
+    external_string: typing.Optional[str] = strawberry.field(
+        description="""External system user ID""",
+        default=None
+    )
+    
+    external_provider: typing.Optional[str] = strawberry.field(
+        description="""External provider (e.g., 'google', 'microsoft', 'azure')""",
+        default=None
+    )
+    
+    notes: typing.Optional[str] = strawberry.field(
+        description="""Administrative notes about the user""",
+        default=None
+    )
+    
+    timezone: typing.Optional[str] = strawberry.field(
+        description="""User's timezone (e.g., 'Europe/Prague')""",
+        default=None
+    )
+    
+    max_api_keys: typing.Optional[int] = strawberry.field(
+        description="""Maximum number of API keys this user can have""",
+        default=None
+    )
+    
+    changedby_id: strawberry.Private[IDType] = None
+
+@strawberry.input(
+    description="""Input type for deleting a User"""
+)
+class UserDeleteGQLModel:
+    id: IDType = strawberry.field(
+        description="""User id"""
+    )
+    lastchange: datetime.datetime = strawberry.field(
+        description="""last change"""
+    )
+
+# Mutation interface
+@strawberry.interface(
+    description="""User mutations"""
+)
 class UserMutation:
     """
     User mutation interface - provides write operations for User entities
     """
-    pass
+    @strawberry.mutation(
+        description="""Insert a User""",
+        permission_classes=[
+            OnlyForAuthentized,
+            SimpleInsertPermission[UserGQLModel](roles=["administrátor"])
+        ],
+        extensions=[
+            UserAccessControlExtension[InsertError, UserGQLModel](
+                roles=["administrátor"]
+            ),
+            UserRoleProviderExtension[InsertError, UserGQLModel](),
+            RbacProviderExtension[InsertError, UserGQLModel](),
+            LoadDataExtension[InsertError, UserGQLModel]()
+        ],
+    )
+    async def user_insert(
+        self,
+        info: strawberry.Info,
+        user: UserInsertGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
+    ) -> typing.Union[UserGQLModel, InsertError[UserGQLModel]]:
+        return await Insert[UserGQLModel].DoItSafeWay(info=info, entity=user)
+    
+    @strawberry.mutation(
+        description="""Update a User""",
+        permission_classes=[
+            OnlyForAuthentized,
+            SimpleUpdatePermission[UserGQLModel](roles=["administrátor"])
+        ],
+        extensions=[
+            UserAccessControlExtension[UpdateError, UserGQLModel](
+                roles=["administrátor"]
+            ),
+            UserRoleProviderExtension[UpdateError, UserGQLModel](),
+            RbacProviderExtension[UpdateError, UserGQLModel](),
+            LoadDataExtension[UpdateError, UserGQLModel]()
+        ],
+    )
+    async def user_update(
+        self,
+        info: strawberry.Info,
+        user: UserUpdateGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
+    ) -> typing.Union[UserGQLModel, UpdateError[UserGQLModel]]:
+        return await Update[UserGQLModel].DoItSafeWay(info=info, entity=user)
+    
+    @strawberry.mutation(
+        description="""Delete a User""",
+        permission_classes=[
+            OnlyForAuthentized,
+            SimpleDeletePermission[UserGQLModel](roles=["administrátor"])
+        ],
+        extensions=[
+            UserAccessControlExtension[DeleteError, UserGQLModel](
+                roles=["administrátor"]
+            ),
+            UserRoleProviderExtension[DeleteError, UserGQLModel](),
+            RbacProviderExtension[DeleteError, UserGQLModel](),
+            LoadDataExtension[DeleteError, UserGQLModel]()
+        ],
+    )
+    async def user_delete(
+        self,
+        info: strawberry.Info,
+        user: UserDeleteGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
+    ) -> typing.Optional[DeleteError[UserGQLModel]]:
+        return await Delete[UserGQLModel].DoItSafeWay(info=info, entity=user)
 
 
 # Resolver functions (using PageResolver pattern like ApiKeyGQLModel)
