@@ -7,7 +7,6 @@ from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 import httpx
 
-# from db import init_db
 from .db import (
     AsyncSessionMaker,
     require_api_key,
@@ -15,6 +14,7 @@ from .db import (
     record_usage,
     ApiKeyAuthError,
     ApiKey,
+    init_db,
 )
 
 import prometheus_client
@@ -186,7 +186,8 @@ client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT_SECS, connect=10.0))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # await init_db()
+    # Initialize database connection
+    await init_db()
     yield
     await client.aclose()
 
