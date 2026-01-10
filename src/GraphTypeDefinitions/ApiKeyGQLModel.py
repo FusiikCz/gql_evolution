@@ -64,7 +64,17 @@ class ApiKeyInputFilter:
     )
 
 @strawberry.federation.type(
-    description="""Entity representing an API Key for accessing AI models""",
+    description="""Entity representing an API Key for accessing AI models with rate limiting and usage tracking.
+API keys are used to authenticate and authorize access to AI services like OpenAI, Azure OpenAI, etc.
+Each API key belongs to a user and has configurable rate limits (per minute, hour, day).
+API keys can have expiration dates and usage quotas (max tokens, max cost per month).
+Usage is tracked in UsageGQLModel entities linked via api_key_id.
+Example use cases:
+- "List all API keys for current user"
+- "Find active API keys expiring soon"
+- "Get API key usage statistics"
+- "Filter API keys by usage patterns"
+Use ApiKeyInputFilter with filters like name, is_active, expires_at, and nested usage filters.""",
     keys=["id"]
 )
 class ApiKeyGQLModel(BaseGQLModel):

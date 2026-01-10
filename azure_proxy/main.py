@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 import httpx
 
 # Configure logging
@@ -742,39 +743,42 @@ async def llmtest(
     asjson = resp.model_dump()
     return asjson
 
-@app.middleware("http")
-async def access_log(request: Request, call_next):
-    # --- request info ---
-    url = str(request.url)                   # plná URL
-    path = request.url.path                  # jen /cesta
-    query = request.url.query                # bez '?'
-    method = request.method
-    scheme = request.scope.get("scheme")
-    http_ver = request.scope.get("http_version")
-    client_host, client_port = (request.client.host, request.client.port) if request.client else (None, None)
-    ua = request.headers.get("user-agent", "")
-    xff = request.headers.get("x-forwarded-for")
-    req_id = request.headers.get("x-request-id")
+# Use BaseHTTPMiddleware instead of deprecated @app.middleware decorator
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # --- request info ---
+        url = str(request.url)                   # plná URL
+        path = request.url.path                  # jen /cesta
+        query = request.url.query                # bez '?'
+        method = request.method
+        scheme = request.scope.get("scheme")
+        http_ver = request.scope.get("http_version")
+        client_host, client_port = (request.client.host, request.client.port) if request.client else (None, None)
+        ua = request.headers.get("user-agent", "")
+        xff = request.headers.get("x-forwarded-for")
+        req_id = request.headers.get("x-request-id")
 
-    print(f"[REQ] {method} {url} hv={http_ver} client={client_host}:{client_port} ua={ua[:80]} xff={xff} req_id={req_id}")
+        print(f"[REQ] {method} {url} hv={http_ver} client={client_host}:{client_port} ua={ua[:80]} xff={xff} req_id={req_id}")
 
-    # --- timing ---
-    start = time.perf_counter()
-    try:
-        response = await call_next(request)
-    finally:
-        dur = (time.perf_counter() - start)
-    # --- response info ---
-    status = getattr(response, "status_code", None)
-    clen = response.headers.get("content-length")
-    ctype = response.headers.get("content-type")
-    upstream_id = response.headers.get("x-request-id")  # pokud ho upstream přepošleš
+        # --- timing ---
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+        finally:
+            dur = (time.perf_counter() - start)
+        # --- response info ---
+        status = getattr(response, "status_code", None)
+        clen = response.headers.get("content-length")
+        ctype = response.headers.get("content-type")
+        upstream_id = response.headers.get("x-request-id")  # pokud ho upstream přepošleš
 
-    # přidej header s časem
-    response.headers["X-Process-Time"] = f"{dur:.6f}"
+        # přidej header s časem
+        response.headers["X-Process-Time"] = f"{dur:.6f}"
 
-    print(f"[RES] {method} {path}{'?' + query if query else ''} -> {status} len={clen} type={ctype} t={dur:.3f}s upstream_id={upstream_id}")
-    return response
+        print(f"[RES] {method} {path}{'?' + query if query else ''} -> {status} len={clen} type={ctype} t={dur:.3f}s upstream_id={upstream_id}")
+        return response
+
+app.add_middleware(AccessLogMiddleware)
 
 # from gui import init_gui
 # init_gui(app)

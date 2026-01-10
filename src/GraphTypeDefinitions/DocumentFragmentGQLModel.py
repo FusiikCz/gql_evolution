@@ -25,6 +25,7 @@ from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProvide
 from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
 
 from .BaseGQLModel import BaseGQLModel, IDType
+from .VectorFilters import VectorFilter
 
 DocumentGQLModel = typing.Annotated["DocumentGQLModel", strawberry.lazy(".DocumentGQLModel")]
 
@@ -36,10 +37,31 @@ class DocumentFragmentInputFilter:
     title: str
     summary: str
     order_index: int
+    
+    embedding: typing.Optional[VectorFilter] = strawberry.field(
+        default=None,
+        description="""Vector similarity filter for AI embeddings.
+        Use _similarity to find document fragments similar to a given embedding vector.
+        Use _distance to find fragments within a certain distance.
+        Example: {"embedding": {"_similarity": {"vector": [...], "threshold": 0.8}}}
+        This enables semantic search: find fragments with similar meaning to a query vector.
+        The vector dimension must match stored embeddings (typically 768 or 1536 dimensions).
+        Useful for AI-powered content discovery: "Find fragments similar to this text".""",
+    )
 
 
 @strawberry.federation.type(
-    description="""Atomic fragment of a document with semantic embedding""",
+    description="""Entity representing a Document Fragment - a semantic chunk of a larger Document.
+Fragments are used to break down large documents into smaller, manageable pieces for processing.
+Each fragment has its own embedding vector for semantic similarity search.
+Fragments maintain order within their parent document via order_index.
+Fragments are useful for AI-powered search: finding similar content, semantic matching, etc.
+Example use cases:
+- "Find fragments similar to a query vector"
+- "Get all fragments of a document in order"
+- "Search fragments by content or title"
+- "Find related fragments using embedding similarity"
+Use DocumentFragmentInputFilter with filters like title, content, and vector similarity filters.""",
     keys=["id"]
 )
 class DocumentFragmentGQLModel(BaseGQLModel):
@@ -48,7 +70,8 @@ class DocumentFragmentGQLModel(BaseGQLModel):
         return getLoadersFromInfo(info).DocumentFragmentModel
 
     document_id: IDType = strawberry.field(
-        description="""Parent document identifier""",
+        description="""Parent document identifier - foreign key to Document entity that owns this fragment.
+        @relation(to: DocumentGQLModel, field: 'id')""",
         permission_classes=[OnlyForAuthentized],
     )
 
@@ -108,7 +131,8 @@ class DocumentFragmentInsertGQLModel(InputModelMixin):
     getLoader = DocumentFragmentGQLModel.getLoader
 
     document_id: IDType = strawberry.field(
-        description="""Parent document id"""
+        description="""Parent document id - foreign key to Document entity that owns this fragment.
+        @relation(to: DocumentGQLModel, field: 'id')"""
     )
     title: typing.Optional[str] = strawberry.field(
         description="""Fragment title""",

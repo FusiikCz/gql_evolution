@@ -5,6 +5,7 @@ import dataclasses
 # region mcp
 import fastmcp
 from fastmcp.tools.tool import ToolResult, TextContent
+from fastmcp.server.http import create_sse_app
 
 from .mcpserver import mcp, createGQLClient
 from main_ai import azureCompletions
@@ -234,8 +235,14 @@ import main_mcp.tools
 # Připoj MCP router k umbrella app
 # app.include_router(mcp, prefix="/mcp")
 mcp_app = mcp.http_app(path="/")
-mcp_app_sse = mcp.sse_app(path="/")
-# mcp.sse_app()
+# Use create_sse_app directly instead of deprecated sse_app()
+# create_sse_app requires message_path and sse_path parameters
+# message_path: endpoint for JSON-RPC messages (POST requests)  
+# sse_path: endpoint for SSE stream (GET requests with Accept: text/event-stream)
+# Standard MCP SSE configuration:
+# - JSON-RPC messages: /mcp/messages
+# - SSE stream: /mcp/sse
+mcp_app_sse = create_sse_app(mcp, message_path="/messages", sse_path="/sse")
 # v následujícím dotazu identifikuj datové entity, a podmínky, které mají splňovat. seznam datových entit (jejich odhadnuté názvy) uveď jako json list obsahující stringy - názvy seznam podmínek uveď jako json list obsahující dict např. {"name": {"_eq": "Pavel"}} pokud se jedná o podmínku v relaci, odpovídající dict je tento {"related_entity": {"attribute_name": {"_eq": "value"}}} v dict nikdy není použit klíč, který by sdružoval více názvů atributů dotaz: najdi mi všechny uživatele, kteří jsou členy katedry K209
 
 # C:\Users\admin\.dive\config
