@@ -301,32 +301,37 @@ async def record_usage(
         except Exception:
             pass  # Ignore JSON serialization errors
     
-    u = UsageModel(
-        api_key_id=api_key.id,
-        ts=ts or datetime.now(timezone.utc),
-        route=route,
-        deployment=deployment,
-        model=model,
-        status=status,
-        stream=stream,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        total_tokens=total_tokens,
-        cost_usd=cost_usd,
-        request_id=request_id,  # Store meta here if provided
-        endpoint_config_id=endpoint_config_id,  # Endpoint configuration ID
-    )
-    db.add(u)
-    
-    # Update api_key.last_used_at - merge the detached instance into current session
-    # to avoid DetachedInstanceError when modifying attributes
-    # Note: merge() is async in SQLAlchemy 2.0 AsyncSession
-    api_key_merged = await db.merge(api_key)
-    api_key_merged.last_used_at = datetime.now(timezone.utc)
-    
-    await db.commit()
-    await db.refresh(u)
-    return u
+    try:
+        u = UsageModel(
+            api_key_id=api_key.id,
+            ts=ts or datetime.now(timezone.utc),
+            route=route,
+            deployment=deployment,
+            model=model,
+            status=status,
+            stream=stream,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost_usd,
+            request_id=request_id,  # Store meta here if provided
+            endpoint_config_id=endpoint_config_id,  # Endpoint configuration ID
+        )
+        db.add(u)
+        
+        # Update api_key.last_used_at - merge the detached instance into current session
+        # to avoid DetachedInstanceError when modifying attributes
+        # Note: merge() is async in SQLAlchemy 2.0 AsyncSession
+        api_key_merged = await db.merge(api_key)
+        api_key_merged.last_used_at = datetime.now(timezone.utc)
+        
+        await db.commit()
+        await db.refresh(u)
+        return u
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Failed to record usage: {e}", exc_info=True)
+        raise
 
 # ---------- Aggregations (consumption over time) ----------
 Bucket = Literal["hour", "day"]

@@ -80,11 +80,14 @@ async def log_usage_record(record: dict):
     """Zapíše jednu řádku s usage do JSONL + volitelně na stdout."""
     line = json.dumps(record, ensure_ascii=False)
     if USAGE_LOG_STDOUT:
-        print(f"[USAGE] {line}")
+        logger.info(f"[USAGE] {line}")
     if USAGE_LOG_PATH:
         async with _usage_lock:
-            with open(USAGE_LOG_PATH, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            try:
+                with open(USAGE_LOG_PATH, "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+            except Exception as e:
+                logger.error(f"Failed to write usage log to {USAGE_LOG_PATH}: {e}", exc_info=True)
     return record
 
 def make_usage_record(
@@ -297,13 +300,13 @@ def log_req(deployment: str, body: dict):
     meta = {k: body.get(k) for k in ("model","temperature","stream")}
     if LOG_PROMPTS:
         # POZOR: může obsahovat PII
-        print(f"[REQ] dep={deployment} meta={meta} messages={json.dumps(body.get('messages', [])[:2], ensure_ascii=False)[:500]}…")
+        logger.debug(f"[REQ] dep={deployment} meta={meta} messages={json.dumps(body.get('messages', [])[:2], ensure_ascii=False)[:500]}…")
     else:
         # bezpečné minimum
-        print(f"[REQ] dep={deployment} meta={meta} messages_count={len(body.get('messages', []))}")
+        logger.debug(f"[REQ] dep={deployment} meta={meta} messages_count={len(body.get('messages', []))}")
 
 def log_res(status: int, usage: Optional[dict]):
-    print(f"[RES] status={status} usage={usage or {}}")
+    logger.debug(f"[RES] status={status} usage={usage or {}}")
 
 def extract_usage(json_obj: dict) -> Optional[dict]:
     if not isinstance(json_obj, dict):
@@ -385,40 +388,43 @@ async def forward_nonstream(
                             prompt_tokens=pt if isinstance(pt, int) else None,
                             completion_tokens=ct if isinstance(ct, int) else None,
                         )
-                        async with AsyncSessionMaker() as db:
-                            usage_record = await record_usage(
-                                db,
-                                api_key=api_key,
-                                route=routelabel,
-                                deployment=deployment,
-                                model=model_name,
-                                status=r.status_code,
-                                stream=False,
-                                prompt_tokens=pt if isinstance(pt, int) else None,
-                                completion_tokens=ct if isinstance(ct, int) else None,
-                                total_tokens=tt if isinstance(tt, int) else None,
-                                stream_bytes=None,
-                                cost_usd=cost_usd,
-                                meta={"idempotency_key": idempotency_key},
-                                base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
-                            )
-                            # Increment endpoint-specific metrics if endpoint_config_id was found
-                            if usage_record and usage_record.endpoint_config_id:
-                                try:
-                                    PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
-                                        endpoint_config_id=str(usage_record.endpoint_config_id),
-                                        route=routelabel,
-                                        status=str(r.status_code)
-                                    ).inc()
-                                    if cost_usd:
-                                        PROXY_ENDPOINT_COST_TOTAL.labels(
+                        try:
+                            async with AsyncSessionMaker() as db:
+                                usage_record = await record_usage(
+                                    db,
+                                    api_key=api_key,
+                                    route=routelabel,
+                                    deployment=deployment,
+                                    model=model_name,
+                                    status=r.status_code,
+                                    stream=False,
+                                    prompt_tokens=pt if isinstance(pt, int) else None,
+                                    completion_tokens=ct if isinstance(ct, int) else None,
+                                    total_tokens=tt if isinstance(tt, int) else None,
+                                    stream_bytes=None,
+                                    cost_usd=cost_usd,
+                                    meta={"idempotency_key": idempotency_key},
+                                    base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
+                                )
+                                # Increment endpoint-specific metrics if endpoint_config_id was found
+                                if usage_record and usage_record.endpoint_config_id:
+                                    try:
+                                        PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
                                             endpoint_config_id=str(usage_record.endpoint_config_id),
-                                            route=routelabel
-                                        ).inc(cost_usd)
-                                except Exception:
-                                    pass  # Ignore metric errors
+                                            route=routelabel,
+                                            status=str(r.status_code)
+                                        ).inc()
+                                        if cost_usd:
+                                            PROXY_ENDPOINT_COST_TOTAL.labels(
+                                                endpoint_config_id=str(usage_record.endpoint_config_id),
+                                                route=routelabel
+                                            ).inc(cost_usd)
+                                    except Exception:
+                                        pass  # Ignore metric errors
+                        except Exception as _e:
+                            logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
                     except Exception as _e:
-                        logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
+                        logger.warning(f"Error processing usage data: {type(_e).__name__}: {_e}", exc_info=True)
                 log_res(r.status_code, usage=usage)
                 if data is not None:
                     return JSONResponse(status_code=r.status_code, content=data)
@@ -526,42 +532,45 @@ async def forward_stream_with_usage(
                         prompt_tokens=pt if isinstance(pt, int) else None,
                         completion_tokens=ct if isinstance(ct, int) else None,
                     )
-                    async with AsyncSessionMaker() as db:
-                        usage_record = await record_usage(
-                            db,
-                            api_key=api_key,
-                            route=route,
-                            deployment=deployment,
-                            model=model_name,
-                            status=status_code,
-                            stream=True,
-                            prompt_tokens=pt if isinstance(pt, int) else None,
-                            completion_tokens=ct if isinstance(ct, int) else None,
-                            total_tokens=tt if isinstance(tt, int) else None,
-                            stream_bytes=usage_counter,
-                            cost_usd=cost_usd,
-                            meta={"idempotency_key": idempotency_key},
-                            base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
-                        )
-                        # Increment endpoint-specific metrics if endpoint_config_id was found
-                        if usage_record and usage_record.endpoint_config_id:
-                            try:
-                                PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
-                                    endpoint_config_id=str(usage_record.endpoint_config_id),
-                                    route=route,
-                                    status=str(status_code)
-                                ).inc()
-                                if cost_usd:
-                                    PROXY_ENDPOINT_COST_TOTAL.labels(
+                    try:
+                        async with AsyncSessionMaker() as db:
+                            usage_record = await record_usage(
+                                db,
+                                api_key=api_key,
+                                route=route,
+                                deployment=deployment,
+                                model=model_name,
+                                status=status_code,
+                                stream=True,
+                                prompt_tokens=pt if isinstance(pt, int) else None,
+                                completion_tokens=ct if isinstance(ct, int) else None,
+                                total_tokens=tt if isinstance(tt, int) else None,
+                                stream_bytes=usage_counter,
+                                cost_usd=cost_usd,
+                                meta={"idempotency_key": idempotency_key},
+                                base_url=UPSTREAM_ENDPOINT,  # Auto-detect endpoint_config_id
+                            )
+                            # Increment endpoint-specific metrics if endpoint_config_id was found
+                            if usage_record and usage_record.endpoint_config_id:
+                                try:
+                                    PROXY_ENDPOINT_REQUESTS_TOTAL.labels(
                                         endpoint_config_id=str(usage_record.endpoint_config_id),
-                                        route=route
-                                    ).inc(cost_usd)
-                            except Exception:
-                                pass  # Ignore metric errors
+                                        route=route,
+                                        status=str(status_code)
+                                    ).inc()
+                                    if cost_usd:
+                                        PROXY_ENDPOINT_COST_TOTAL.labels(
+                                            endpoint_config_id=str(usage_record.endpoint_config_id),
+                                            route=route
+                                        ).inc(cost_usd)
+                                except Exception:
+                                    pass  # Ignore metric errors
+                    except Exception as _e:
+                        logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
                 except Exception as _e:
-                    logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
+                    logger.warning(f"Error processing usage data: {type(_e).__name__}: {_e}", exc_info=True)
         except Exception as _e:
-            logger.warning(f"Error processing usage data: {type(_e).__name__}: {_e}", exc_info=True)
+            logger.warning(f"Error logging usage record: {type(_e).__name__}: {_e}", exc_info=True)
 
     return StreamingResponse(
         _gen(), 
@@ -670,7 +679,7 @@ async def list_models_openai():
     if not items and DEFAULT_DEPLOYMENT:
         items = [{"id": "gpt-azure", "object": "model", "created": 0, "owned_by": "azure-proxy"}]
     result = {"object": "list", "data": items}
-    print(f"list_models_openai: {json.dumps(result, indent=2)}")
+    logger.debug(f"list_models_openai: {json.dumps(result, indent=2)}")
     return result
 
 # ---------- OpenAI-compatible: /v1/chat/completions ----------
@@ -758,24 +767,33 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         xff = request.headers.get("x-forwarded-for")
         req_id = request.headers.get("x-request-id")
 
-        print(f"[REQ] {method} {url} hv={http_ver} client={client_host}:{client_port} ua={ua[:80]} xff={xff} req_id={req_id}")
+        logger.debug(f"[REQ] {method} {url} hv={http_ver} client={client_host}:{client_port} ua={ua[:80]} xff={xff} req_id={req_id}")
 
         # --- timing ---
         start = time.perf_counter()
+        dur = 0.0
         try:
             response = await call_next(request)
-        finally:
             dur = (time.perf_counter() - start)
+        except Exception as e:
+            dur = (time.perf_counter() - start)
+            logger.error(f"[REQ] {method} {path} -> ERROR after {dur:.3f}s: {type(e).__name__}: {e}", exc_info=True)
+            raise
+        
         # --- response info ---
         status = getattr(response, "status_code", None)
-        clen = response.headers.get("content-length")
-        ctype = response.headers.get("content-type")
-        upstream_id = response.headers.get("x-request-id")  # pokud ho upstream přepošleš
+        clen = response.headers.get("content-length") if hasattr(response, 'headers') else None
+        ctype = response.headers.get("content-type") if hasattr(response, 'headers') else None
+        upstream_id = response.headers.get("x-request-id") if hasattr(response, 'headers') else None
 
-        # přidej header s časem
-        response.headers["X-Process-Time"] = f"{dur:.6f}"
+        # přidej header s časem (pokud response není streaming a má headers)
+        if hasattr(response, 'headers') and not isinstance(response, StreamingResponse):
+            try:
+                response.headers["X-Process-Time"] = f"{dur:.6f}"
+            except Exception:
+                pass  # Ignore if headers are read-only
 
-        print(f"[RES] {method} {path}{'?' + query if query else ''} -> {status} len={clen} type={ctype} t={dur:.3f}s upstream_id={upstream_id}")
+        logger.info(f"[RES] {method} {path}{'?' + query if query else ''} -> {status} len={clen} type={ctype} t={dur:.3f}s upstream_id={upstream_id}")
         return response
 
 app.add_middleware(AccessLogMiddleware)
