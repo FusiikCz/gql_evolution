@@ -102,6 +102,35 @@ ERROR_CODES = {
         "category": "authorization",
         "description": "This operation can only be performed by the event organizer. Only users with organizer role for this event can perform this action."
     },
+    
+    # ========== Email Validation Errors ==========
+    "INVALID_EMAIL": {
+        "message": "Invalid email format",
+        "category": "validation",
+        "description": "The provided email address does not match the required format. Please provide a valid email address."
+    },
+    "EMAIL_ALREADY_EXISTS": {
+        "message": "Email already exists in database",
+        "category": "validation",
+        "description": "The provided email address is already registered to another user. Each email can only be associated with one user account."
+    },
+    
+    # ========== Endpoint Configuration Errors ==========
+    "INVALID_ENDPOINT_TYPE": {
+        "message": "Invalid endpoint type",
+        "category": "validation",
+        "description": "The endpoint type must be one of: 'openai_chat', 'openai_responses', 'azure_chat', 'azure_responses', 'custom'."
+    },
+    "INVALID_BASE_URL": {
+        "message": "Invalid base URL format",
+        "category": "validation",
+        "description": "The base URL must start with http:// or https:// and be a valid URL format."
+    },
+    "INVALID_JSON": {
+        "message": "Invalid JSON format",
+        "category": "validation",
+        "description": "The provided JSON string could not be parsed. Please check the JSON syntax and try again."
+    },
 }
 
 def get_error_description(code: str) -> str:

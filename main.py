@@ -2,6 +2,7 @@ import os
 import socket
 import asyncio
 import datetime
+import warnings
 
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,16 @@ from strawberry.fastapi import GraphQLRouter
 
 import logging
 import logging.handlers
+
+# Suppress websockets deprecation warning from nicegui
+# This warning comes from websockets library used by nicegui
+# and cannot be fixed in our code - it's in the dependency
+warnings.filterwarnings(
+    "ignore",
+    message="remove second argument of ws_handler",
+    category=DeprecationWarning,
+    module="websockets"
+)
 
 from sqlalchemy import select, func, text
 
@@ -229,8 +240,12 @@ async def lifespan(app: FastAPI):
         try:
             yield
         finally:
-            pass
-        await backupDB(initizalizedEngine)
+            # Backup database on shutdown
+            try:
+                await backupDB(initizalizedEngine)
+                logging.info("Database backup completed successfully")
+            except Exception as e:
+                logging.error(f"Error during database backup: {e}", exc_info=True)
     
     # print("App shutdown, nothing to do")
 
@@ -463,6 +478,7 @@ from fastmcp import Client
 from main_mcp import mcp_app, mcp_app_sse
 innerlifespan = mcp_app.lifespan
 
+# Mount MCP apps BEFORE middleware is added to avoid conflicts with streaming responses
 app.mount(path="/mcp", app=mcp_app_sse)
 app.mount(path="/mcp_no_sse", app=mcp_app)
 
@@ -476,7 +492,8 @@ async def test_mcp() -> dict:
         "status": "ok",
         "mcp_name": mcp.name,
         "endpoints": {
-            "mcp_sse": "/mcp",
+            "mcp_sse_messages": "/mcp/messages",
+            "mcp_sse_stream": "/mcp/sse",
             "mcp_http": "/mcp_no_sse"
         },
         "info": "MCP server is running. Use an MCP client (like Dive) to connect."
@@ -496,19 +513,8 @@ async def test_mcp() -> dict:
 # endregion
 
 
-@app.middleware("http")
-async def add_process_log(request: Request, call_next):
-    print(f"http.middleware base_url={request.base_url}")
-    response = await call_next(request)
-    return response
-
-@mcp_app.middleware("http")
-async def add_process_log(request: Request, call_next):
-    print(f"mcp.http.middleware base_url={request.base_url}")
-    try:
-        response = await call_next(request)
-    except Exception as e:
-        print("chyba {e}")
-        raise e
-    return response
+# NOTE: Middleware is intentionally NOT added here to avoid conflicts
+# with streaming responses (SSE) from MCP endpoints.
+# MCP endpoints are mounted and handle their own requests directly.
+# The previous middleware caused AssertionError with streaming responses.
 # v následujícím dotazu identifikuj datové entity, a podmínky, které mají splňovat. seznam datových entit (jejich odhadnuté názvy) uveď jako json list obsahující stringy - názvy seznam podmínek uveď jako json list obsahující dict např. {"name": {"_eq": "Pavel"}} pokud se jedná o podmínku v relaci, odpovídající dict je tento {"related_entity": {"attribute_name": {"_eq": "value"}}} v dict nikdy není použit klíč, který by sdružoval více názvů atributů dotaz: najdi mi všechny uživatele, kteří jsou členy katedry K209

@@ -82,9 +82,9 @@ class EndpointConfigModel(BaseModel):
     token_prefix: Mapped[typing.Optional[str]] = mapped_column(
         String(32),
         nullable=True,
-        index=True,
         default=None,
         comment="Prefix of the shared token for quick lookup"
+        # Note: index is defined in __table_args__ to avoid duplication
     )
     
     # Status
