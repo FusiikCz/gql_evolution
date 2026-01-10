@@ -37,7 +37,7 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
 
         if makeUp:
             try:
-                await conn.run_sync(BaseModel.metadata.create_all)
+                await conn.run_sync(BaseModel.metadata.create_all, checkfirst=True)
                 logging.info("BaseModel.metadata.create_all finished")
                 
                 # Fix: Ensure embedding columns are nullable (pgvector may create NOT NULL by default)

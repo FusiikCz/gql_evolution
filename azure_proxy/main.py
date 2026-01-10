@@ -1,4 +1,9 @@
-import os, json, hashlib, asyncio, time
+import os
+import json
+import hashlib
+import asyncio
+import time
+import logging
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -6,6 +11,13 @@ import uvicorn
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 import httpx
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 from .db import (
     AsyncSessionMaker,
@@ -59,7 +71,9 @@ USAGE_LOG_STDOUT = os.getenv("USAGE_LOG_STDOUT", "true").lower() == "true"
 _usage_lock = asyncio.Lock()
 def _now_iso():
     import datetime as _dt
-    return _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds") + "Z"
+    # Return ISO 8601 timestamp in UTC with 'Z' suffix (e.g., "2024-01-15T10:30:00Z")
+    # Remove timezone info before isoformat to avoid +00:00Z (invalid format)
+    return _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
 
 async def log_usage_record(record: dict):
     """Zapíše jednu řádku s usage do JSONL + volitelně na stdout."""
@@ -403,7 +417,7 @@ async def forward_nonstream(
                                 except Exception:
                                     pass  # Ignore metric errors
                     except Exception as _e:
-                        print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
+                        logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
                 log_res(r.status_code, usage=usage)
                 if data is not None:
                     return JSONResponse(status_code=r.status_code, content=data)
@@ -544,9 +558,9 @@ async def forward_stream_with_usage(
                             except Exception:
                                 pass  # Ignore metric errors
                 except Exception as _e:
-                    print(f"[USAGE DB WARN] {type(_e).__name__}: {_e}")
+                    logger.warning(f"Error recording usage to database: {type(_e).__name__}: {_e}", exc_info=True)
         except Exception as _e:
-            print(f"[USAGE WARN] {type(_e).__name__}: {_e}")
+            logger.warning(f"Error processing usage data: {type(_e).__name__}: {_e}", exc_info=True)
 
     return StreamingResponse(
         _gen(), 
@@ -708,7 +722,6 @@ async def llmtest(
     from openai import AzureOpenAI, AsyncAzureOpenAI
     from openai.types.chat import ChatCompletion
     from openai.resources.chat.completions import AsyncCompletions
-    UPSTREAM_ENDPOINT = "http://localhost:8003/"
     client = AsyncAzureOpenAI(
         azure_endpoint=UPSTREAM_ENDPOINT,
         azure_deployment=deployment,  # tvůj deployment name

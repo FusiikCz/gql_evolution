@@ -4,11 +4,12 @@ from __future__ import annotations
 import os
 import json
 import logging
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional, Iterable, Literal
 import uuid
 
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Import main DB models and utilities
@@ -45,11 +46,16 @@ else:
     class LazyAsyncSessionMaker:
         def __init__(self):
             self._maker = None
+            self._init_lock = asyncio.Lock()
         
         async def _ensure_initialized(self):
+            # Double-check pattern with lock to prevent race condition
             if self._maker is None:
-                connection_string = ComposeConnectionString()
-                self._maker = await startEngine(connection_string, makeDrop=False, makeUp=True)
+                async with self._init_lock:
+                    # Check again after acquiring lock (another coroutine might have initialized)
+                    if self._maker is None:
+                        connection_string = ComposeConnectionString()
+                        self._maker = await startEngine(connection_string, makeDrop=False, makeUp=True)
             return self._maker
         
         def __call__(self):
@@ -197,6 +203,8 @@ async def get_endpoint_config_by_route(
     """
     Find endpoint configuration ID by route and base_url.
     
+    Prioritizes base_url over route for more accurate matching.
+    
     Args:
         db: Database session
         route: Route path (e.g., "openai_v1_chat_completions")
@@ -209,30 +217,49 @@ async def get_endpoint_config_by_route(
         return None
     
     try:
+        # Import at module level would cause circular dependency, so import here
         from src.DBDefinitions import EndpointConfigModel
-        from sqlalchemy import select, or_
         
-        conditions = []
-        if route:
-            # Try to match by route pattern in name or description
-            conditions.append(EndpointConfigModel.name.ilike(f"%{route}%"))
+        # Prioritize base_url matching as it's more precise
         if base_url:
-            conditions.append(EndpointConfigModel.base_url == base_url)
+            stmt = select(EndpointConfigModel.id).where(
+                EndpointConfigModel.is_active == True,
+                EndpointConfigModel.base_url == base_url
+            ).limit(1)
+            result = await db.execute(stmt)
+            endpoint_id = result.scalar_one_or_none()
+            if endpoint_id:
+                logging.debug(f"Found endpoint config by base_url: {base_url} -> {endpoint_id}")
+                return endpoint_id
         
-        if not conditions:
-            return None
+        # Fallback to route-based matching if base_url didn't match
+        if route:
+            # Match by name or description (if description is not null)
+            stmt = select(EndpointConfigModel.id).where(
+                EndpointConfigModel.is_active == True,
+                or_(
+                    EndpointConfigModel.name.ilike(f"%{route}%"),
+                    and_(
+                        EndpointConfigModel.description.isnot(None),
+                        EndpointConfigModel.description.ilike(f"%{route}%")
+                    )
+                )
+            ).limit(1)
+            result = await db.execute(stmt)
+            endpoint_id = result.scalar_one_or_none()
+            if endpoint_id:
+                logging.debug(f"Found endpoint config by route: {route} -> {endpoint_id}")
+                return endpoint_id
         
-        stmt = select(EndpointConfigModel.id).where(
-            EndpointConfigModel.is_active == True,
-            or_(*conditions)
-        ).limit(1)
-        
-        result = await db.execute(stmt)
-        endpoint_id = result.scalar_one_or_none()
-        return endpoint_id
+        logging.debug(f"No endpoint config found for route={route}, base_url={base_url}")
+        return None
+    except ImportError as e:
+        # EndpointConfigModel might not be available in all environments
+        logging.debug(f"EndpointConfigModel not available: {e}")
+        return None
     except Exception as e:
-        # If EndpointConfigModel doesn't exist or other error, return None
-        logging.debug(f"Could not find endpoint config: {e}")
+        # Log but don't fail - endpoint config is optional
+        logging.warning(f"Error looking up endpoint config: {e}", exc_info=False)
         return None
 
 async def record_usage(
@@ -293,8 +320,8 @@ async def record_usage(
     
     # Update api_key.last_used_at - merge the detached instance into current session
     # to avoid DetachedInstanceError when modifying attributes
-    # Note: merge() is synchronous in SQLAlchemy async sessions
-    api_key_merged = db.merge(api_key)
+    # Note: merge() is async in SQLAlchemy 2.0 AsyncSession
+    api_key_merged = await db.merge(api_key)
     api_key_merged.last_used_at = datetime.now(timezone.utc)
     
     await db.commit()
