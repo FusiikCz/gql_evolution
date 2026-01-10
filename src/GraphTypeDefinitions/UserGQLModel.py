@@ -1,6 +1,7 @@
 import typing
 import datetime
 import strawberry
+import re
 from strawberry.types import Info
 
 from .BaseGQLModel import BaseGQLModel, IDType
@@ -11,6 +12,32 @@ from uoishelpers.resolvers import (
     VectorResolver
 )
 from src.DBDefinitions import UserModel
+
+# Email validation regex
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+def validate_email(email: typing.Optional[str]) -> bool:
+    """Validate email format using regex."""
+    if not email:
+        return True  # Email is optional
+    return bool(EMAIL_REGEX.match(email))
+
+async def check_duplicate_email(
+    session,
+    email: str,
+    exclude_user_id: typing.Optional[IDType] = None
+) -> bool:
+    """Check if email already exists in database."""
+    from sqlalchemy import select
+    from src.DBDefinitions import UserModel
+    
+    stmt = select(UserModel).where(UserModel.email == email)
+    if exclude_user_id:
+        stmt = stmt.where(UserModel.id != exclude_user_id)
+    
+    result = await session.execute(stmt)
+    existing = result.scalar_one_or_none()
+    return existing is not None
 
 
 @strawberry.federation.type(
@@ -388,6 +415,36 @@ class UserMutation:
         rbacobject_id: IDType,
         user_roles: typing.List[dict],
     ) -> typing.Union[UserGQLModel, InsertError[UserGQLModel]]:
+        """
+        Insert a new user with email validation and duplicate check.
+        
+        Validates:
+        - Email format (if provided)
+        - Email uniqueness (if provided)
+        
+        Error codes:
+        - INVALID_EMAIL: Email format is invalid
+        - EMAIL_ALREADY_EXISTS: Email already exists in database
+        """
+        # Validate email format if provided
+        if user.email and not validate_email(user.email):
+            return InsertError(
+                msg=f"Invalid email format: {user.email}",
+                _input=user,
+                code="INVALID_EMAIL"
+            )
+        
+        # Check for duplicate email if provided
+        if user.email:
+            async_session_maker = info.context["asyncSessionMaker"]
+            async with async_session_maker() as session:
+                if await check_duplicate_email(session, user.email):
+                    return InsertError(
+                        msg=f"Email already exists: {user.email}",
+                        _input=user,
+                        code="EMAIL_ALREADY_EXISTS"
+                    )
+        
         return await Insert[UserGQLModel].DoItSafeWay(info=info, entity=user)
     
     @strawberry.mutation(
@@ -413,7 +470,49 @@ class UserMutation:
         rbacobject_id: IDType,
         user_roles: typing.List[dict],
     ) -> typing.Union[UserGQLModel, UpdateError[UserGQLModel]]:
-        return await Update[UserGQLModel].DoItSafeWay(info=info, entity=user)
+        """
+        Update an existing user with email validation and duplicate check.
+        
+        Validates:
+        - Email format (if provided)
+        - Email uniqueness (if provided, excluding current user)
+        
+        Error codes:
+        - INVALID_EMAIL: Email format is invalid
+        - EMAIL_ALREADY_EXISTS: Email already exists in database
+        """
+        # Validate email format if provided
+        if user.email and not validate_email(user.email):
+            return UpdateError(
+                msg=f"Invalid email format: {user.email}",
+                code="INVALID_EMAIL"
+            )
+        
+        # Check for duplicate email if provided (excluding current user)
+        if user.email:
+            async_session_maker = info.context["asyncSessionMaker"]
+            async with async_session_maker() as session:
+                if await check_duplicate_email(session, user.email, exclude_user_id=user.id):
+                    return UpdateError(
+                        msg=f"Email already exists: {user.email}",
+                        code="EMAIL_ALREADY_EXISTS"
+                    )
+        
+        result = await Update[UserGQLModel].DoItSafeWay(info=info, entity=user)
+        
+        # Audit logging for critical operation
+        if not isinstance(result, UpdateError):
+            import logging
+            from uoishelpers.resolvers import getUserFromInfo
+            logger = logging.getLogger(__name__)
+            current_user = getUserFromInfo(info)
+            current_user_id = current_user.id if current_user and hasattr(current_user, 'id') else (current_user.get('id') if current_user and isinstance(current_user, dict) else None)
+            logger.info(
+                f"AUDIT: user_update - performed_by={current_user_id}, user_id={user.id}, "
+                f"email={user.email}, is_active={user.is_active}"
+            )
+        
+        return result
     
     @strawberry.mutation(
         description="""Delete a User""",
