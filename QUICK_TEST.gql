@@ -3,11 +3,17 @@
 # Task 11: API Key Management System
 # ============================================
 #
-# POSTUP PRO PREZENTACI:
+# POSTUP PRO PREZENTACI (API Keys):
 # 1. CREATE - Spusť CreateKeyWithLimits (vytvoří klíč s limitami)
 # 2. READ   - Spusť GetAllKeys (zobrazí všechny klíče, zkopíruj ID a lastchange)
 # 3. UPDATE - Spusť UpdateKey (uprav hodnoty podle potřeby, použij ID a lastchange z kroku 2)
 # 4. DELETE - Spusť DeleteKey (smaže klíč podle ID z kroku 2)
+#
+# POSTUP PRO PREZENTACI (Endpoint Configurations):
+# 1. CREATE - Spusť CreateEndpointConfigAzure (vytvoří Azure endpoint konfiguraci)
+# 2. READ   - Spusť GetAllEndpointConfigs (zobrazí všechny konfigurace, zkopíruj ID a lastchange)
+# 3. UPDATE - Spusť UpdateEndpointConfig (uprav hodnoty, použij ID a lastchange z kroku 2)
+# 4. DELETE - Spusť DeleteEndpointConfig (smaže konfiguraci podle ID z kroku 2)
 #
 # ============================================
 
@@ -74,6 +80,28 @@ fragment DocumentFields on DocumentGQLModel {
   description
   url
   createdAt: created
+}
+
+fragment EndpointConfigFields on EndpointConfigGQLModel {
+  id
+  name
+  endpointType: endpoint_type
+  baseUrl: base_url
+  modelMapping: model_mapping        # JSON string: {"gpt-4o": "gpt4o-prod", ...}
+  defaultDeployment: default_deployment
+  apiVersion: api_version
+  sharedTokenHash: shared_token_hash  # Hashed token (read-only)
+  tokenPrefix: token_prefix           # Token prefix for lookup (read-only)
+  isActive: is_active
+  description
+  apiKeyId: api_key_id
+  apiKey {                           # Related API key (if exists)
+    id
+    name
+    prefix
+  }
+  createdAt: created
+  lastchange
 }
 
 # ============================================
@@ -686,7 +714,174 @@ mutation DeleteFragment($id: ID!, $lastchange: DateTime!) {
 }
 
 # ============================================
-# SECTION 8: COMPLEX QUERIES (Advanced)
+# SECTION 8: ENDPOINT CONFIGURATION OPERATIONS
+# ============================================
+#
+# Endpoint Configuration slouží k definování AI model endpointů (OpenAI, Azure OpenAI, custom).
+# Každá konfigurace obsahuje:
+#   - base_url: URL endpointu (např. "https://api.openai.com/v1" nebo Azure endpoint)
+#   - endpoint_type: Typ endpointu ('openai_chat', 'openai_responses', 'azure_chat', 'azure_responses', 'custom')
+#   - model_mapping: JSON mapování OpenAI modelů na Azure deployments (pro Azure endpoints)
+#   - shared_token_hash: Hash sdíleného tokenu pro přístup k endpointu (volitelné)
+#   - api_key_id: Vazba na API klíč (volitelné)
+#
+# POSTUP PRO PREZENTACI:
+# 1. CREATE - Spusť CreateEndpointConfig (vytvoří konfiguraci endpointu)
+# 2. READ   - Spusť GetAllEndpointConfigs (zobrazí všechny konfigurace, zkopíruj ID a lastchange)
+# 3. UPDATE - Spusť UpdateEndpointConfig (uprav hodnoty, použij ID a lastchange z kroku 2)
+# 4. DELETE - Spusť DeleteEndpointConfig (smaže konfiguraci podle ID z kroku 2)
+
+# --- READ: Seznam všech endpoint konfigurací ---
+query GetAllEndpointConfigs {
+  endpointConfigPage {
+    ...EndpointConfigFields
+  }
+}
+
+# --- READ: Aktivní endpoint konfigurace (s filtrem) ---
+query GetActiveEndpointConfigs {
+  endpointConfigPage(where: { isActive: { _eq: true } }) {
+    ...EndpointConfigFields
+  }
+}
+
+# --- READ: Endpoint konfigurace podle typu ---
+query GetEndpointConfigsByType($endpointType: String!) {
+  endpointConfigPage(where: { endpointType: { _eq: $endpointType } }) {
+    ...EndpointConfigFields
+  }
+}
+
+# Variables example:
+# {
+#   "endpointType": "azure_chat"
+# }
+
+# --- READ: Endpoint konfigurace podle ID ---
+query GetEndpointConfigById($id: ID!) {
+  endpointConfigById(id: $id) {
+    ...EndpointConfigFields
+  }
+}
+
+# --- CREATE: Základní endpoint konfigurace (OpenAI) ---
+mutation CreateEndpointConfigOpenAI {
+  endpointConfigInsert(endpointConfig: {
+    name: "OpenAI Production"
+    endpointType: "openai_chat"
+    baseUrl: "https://api.openai.com/v1"
+    isActive: true
+    description: "OpenAI API production endpoint"
+  }) {
+    ... on EndpointConfigGQLModel {
+      ...EndpointConfigFields
+    }
+    ... on InsertError {
+      msg
+      code
+    }
+  }
+}
+
+# --- CREATE: Azure endpoint konfigurace s model mappingem ---
+mutation CreateEndpointConfigAzure {
+  endpointConfigInsert(endpointConfig: {
+    name: "Azure OpenAI Production"
+    endpointType: "azure_chat"
+    baseUrl: "https://your-resource.openai.azure.com"
+    apiVersion: "2024-12-01-preview"
+    modelMapping: "{\"gpt-4o\": \"gpt4o-prod\", \"gpt-4o-mini\": \"gpt4o-mini-prod\", \"gpt-4\": \"gpt4-prod\"}"
+    defaultDeployment: "gpt4o-prod"
+    isActive: true
+    description: "Azure OpenAI production endpoint with model mapping"
+  }) {
+    ... on EndpointConfigGQLModel {
+      ...EndpointConfigFields
+    }
+    ... on InsertError {
+      msg
+      code
+    }
+  }
+}
+
+# --- CREATE: Custom endpoint konfigurace ---
+mutation CreateEndpointConfigCustom {
+  endpointConfigInsert(endpointConfig: {
+    name: "Custom LLM Endpoint"
+    endpointType: "custom"
+    baseUrl: "https://custom-llm.example.com/v1"
+    isActive: true
+    description: "Custom LLM endpoint configuration"
+  }) {
+    ... on EndpointConfigGQLModel {
+      ...EndpointConfigFields
+    }
+    ... on InsertError {
+      msg
+      code
+    }
+  }
+}
+
+# --- UPDATE: Aktualizace endpoint konfigurace (s variables - doporučený způsob) ---
+mutation UpdateEndpointConfig($endpointConfigInput: EndpointConfigUpdateGQLModel!) {
+  endpointConfigUpdate(endpointConfig: $endpointConfigInput) {
+    ... on EndpointConfigGQLModel {
+      ...EndpointConfigFields
+    }
+    ... on UpdateError {
+      msg
+      code
+    }
+  }
+}
+
+# Variables example:
+# {
+#   "endpointConfigInput": {
+#     "id": "PASTE_ENDPOINT_CONFIG_ID_HERE",
+#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "name": "Updated Azure OpenAI Production",
+#     "isActive": true,
+#     "modelMapping": "{\"gpt-4o\": \"gpt4o-prod-new\", \"gpt-4o-mini\": \"gpt4o-mini-prod\"}"
+#   }
+# }
+
+# --- UPDATE: Deaktivace endpoint konfigurace ---
+mutation DeactivateEndpointConfig($endpointConfigInput: EndpointConfigUpdateGQLModel!) {
+  endpointConfigUpdate(endpointConfig: $endpointConfigInput) {
+    ... on EndpointConfigGQLModel {
+      ...EndpointConfigFields
+    }
+    ... on UpdateError {
+      msg
+      code
+    }
+  }
+}
+
+# Variables example:
+# {
+#   "endpointConfigInput": {
+#     "id": "PASTE_ENDPOINT_CONFIG_ID_HERE",
+#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "isActive": false
+#   }
+# }
+
+# --- DELETE: Smazání endpoint konfigurace ---
+mutation DeleteEndpointConfig($id: ID!, $lastchange: DateTime!) {
+  endpointConfigDelete(id: $id, lastchange: $lastchange) {
+    ... on DeleteError {
+      msg
+      code
+    }
+  }
+}
+
+# ============================================
+# SECTION 9: COMPLEX QUERIES (Advanced)
 # ============================================
 
 # --- Komplexní query: Uživatel s API klíči a usage ---

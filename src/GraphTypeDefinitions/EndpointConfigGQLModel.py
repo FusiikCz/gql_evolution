@@ -143,21 +143,17 @@ class EndpointConfigGQLModel(BaseGQLModel):
 # Query class
 @strawberry.interface
 class EndpointConfigQuery:
-    @PageResolver(
-        description="""Returns list of endpoint configurations""",
-        permission_classes=[OnlyForAuthentized]
+    endpoint_config_by_id: typing.Optional[EndpointConfigGQLModel] = strawberry.field(
+        description="""Get an endpoint configuration by its id""",
+        permission_classes=[OnlyForAuthentized],
+        resolver=EndpointConfigGQLModel.load_with_loader
     )
-    async def endpoint_config_page(
-        self, 
-        info: strawberry.types.Info,
-        skip: typing.Optional[int] = 0,
-        limit: typing.Optional[int] = 10,
-        where: typing.Optional[EndpointConfigInputFilter] = None,
-        orderby: typing.Optional[str] = None,
-        desc: typing.Optional[bool] = None
-    ) -> typing.List[EndpointConfigGQLModel]:
-        loader = getLoadersFromInfo(info).EndpointConfigModel
-        return await loader.page(skip=skip, limit=limit, where=where, orderby=orderby, desc=desc)
+    
+    endpoint_config_page: typing.List[EndpointConfigGQLModel] = strawberry.field(
+        description="""Returns list of endpoint configurations""",
+        permission_classes=[OnlyForAuthentized],
+        resolver=PageResolver[EndpointConfigGQLModel](whereType=EndpointConfigInputFilter)
+    )
 
 # Input types for mutations
 @strawberry.input(

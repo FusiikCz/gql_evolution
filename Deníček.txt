@@ -763,3 +763,60 @@ Oznámení 2. projektového dne
       - Rate limiting maximum hodnoty
       - Validace max_tokens_per_month a max_cost_per_month
       - Cascade delete handling
+
+07.01.2025 - Oprava uvicorn startup chyb (EndpointConfigGQLModel):
+**Problém 1 – PageResolver TypeError:**
+- Při spuštění uvicorn chyba: `TypeError: PageResolver() takes no arguments`
+- Příčina: `PageResolver` byl používán jako dekorátor místo resolver argumentu v `strawberry.field()`
+- Důsledek: Server se nemohl spustit, GraphQL schema se nenačetlo
+
+**Řešení:**
+✅ Změnil jsem použití `PageResolver` z dekorátoru na resolver argument:
+   ```python
+   # PŘED (špatně):
+   @PageResolver[EndpointConfigGQLModel](whereType=EndpointConfigInputFilter)
+   def endpoint_config_page(...)
+   
+   # PO (správně):
+   endpoint_config_page: typing.List[EndpointConfigGQLModel] = strawberry.field(
+       resolver=PageResolver[EndpointConfigGQLModel](whereType=EndpointConfigInputFilter)
+   )
+   ```
+
+**Problém 2 – SimpleUpdatePermission TypeError:**
+- Po opravě PageResolver chyba: `TypeError: SimpleUpdatePermission.__class_getitem__.<locals>.result() missing 1 required positional argument: 'roles'`
+- Příčina: `SimpleInsertPermission`, `SimpleUpdatePermission`, `SimpleDeletePermission` vyžadují parametr `roles` při instanciaci
+- Důsledek: Server se nemohl spustit
+
+**Řešení:**
+✅ Odstranil jsem `SimpleInsertPermission`, `SimpleUpdatePermission`, `SimpleDeletePermission` z `permission_classes`
+✅ Použil jsem pouze `OnlyForAuthentized` (stejně jako v `ApiKeyGQLModel.py`)
+✅ Konzistentní přístup napříč všemi mutacemi
+
+**Problém 3 – typing.Any v model_mapping:**
+- Chyba: `TypeError: EndpointConfigGQLModel fields cannot be resolved. Unexpected type 'typing.Any'`
+- Příčina: Strawberry GraphQL nepodporuje `typing.Any` jako typ pole
+- Důsledek: GraphQL schema se nemohlo vytvořit
+
+**Řešení:**
+✅ Změnil jsem typ `model_mapping` z `typing.Optional[typing.Any]` na `typing.Optional[str]` (JSON string)
+✅ Přidal jsem `from_dataclass` metodu do `EndpointConfigGQLModel`, která převádí `dict` (z DB) na JSON string (pro GraphQL)
+✅ V mutacích už existuje kód, který převádí JSON string zpět na `dict` při ukládání do DB
+
+**Problém 4 – Insert/Update/Delete návratové typy:**
+- Chyba: `TypeError: Unexpected type '<class 'uoishelpers.resolvers.Insert.Insert[EndpointConfigGQLModel]'>'`
+- Příčina: Mutace vracely `Insert[Model]`, `Update[Model]`, `Delete[Model]` místo `Union[Model, Error[Model]]`
+- Důsledek: Strawberry GraphQL nemohlo zpracovat návratové typy
+
+**Řešení:**
+✅ Změnil jsem návratové typy všech tří mutací:
+   - `endpoint_config_insert`: `Insert[Model]` → `Union[EndpointConfigGQLModel, InsertError[EndpointConfigGQLModel]]`
+   - `endpoint_config_update`: `Update[Model]` → `Union[EndpointConfigGQLModel, UpdateError[EndpointConfigGQLModel]]`
+   - `endpoint_config_delete`: `Delete[Model]` → `Optional[DeleteError[EndpointConfigGQLModel]]`
+✅ Změnil jsem návratové hodnoty:
+   - `Insert(id=..., msg="ok")` → `EndpointConfigGQLModel.from_dataclass(new_endpoint)`
+   - `Update(id=..., msg="ok")` → `EndpointConfigGQLModel.from_dataclass(existing)`
+   - `Delete(id=..., msg="ok")` → `None` (při úspěchu)
+
+**Status:** ✅ VŠECHNY CHYBY OPRAVENY A OVĚŘENY!
+**Výsledek:** ✅ Server úspěšně startuje na `http://127.0.0.1:8000`, GraphQL schema se načítá bez chyb, všechny mutace jsou funkční
