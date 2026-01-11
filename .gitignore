@@ -22,3 +22,6 @@
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Ignore gql_evolution subdirectory (duplicitní struktura)
+gql_evolution/

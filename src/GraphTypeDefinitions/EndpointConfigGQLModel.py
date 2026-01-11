@@ -8,9 +8,6 @@ import json
 import strawberry.types
 from uoishelpers.gqlpermissions import (
     OnlyForAuthentized,
-    SimpleInsertPermission, 
-    SimpleUpdatePermission, 
-    SimpleDeletePermission
 )    
 from uoishelpers.resolvers import (
     getLoadersFromInfo, 
@@ -64,6 +61,16 @@ class EndpointConfigGQLModel(BaseGQLModel):
     def getLoader(cls, info: strawberry.types.Info):
         return getLoadersFromInfo(info).EndpointConfigModel
 
+    @classmethod
+    def from_dataclass(cls, db_row):
+        """Override to convert model_mapping from dict to JSON string"""
+        db_row_dict = dataclasses.asdict(db_row)
+        # Convert model_mapping from dict to JSON string if it's a dict
+        if 'model_mapping' in db_row_dict and isinstance(db_row_dict['model_mapping'], dict):
+            db_row_dict['model_mapping'] = json.dumps(db_row_dict['model_mapping'])
+        instance = cls(**db_row_dict)
+        return instance
+
     # Basic identification
     name: str = strawberry.field(
         description="""Human-readable name for the endpoint configuration""",
@@ -82,7 +89,7 @@ class EndpointConfigGQLModel(BaseGQLModel):
     )
     
     # Model mapping configuration
-    model_mapping: typing.Optional[typing.Any] = strawberry.field(
+    model_mapping: typing.Optional[str] = strawberry.field(
         default=None,
         description="""JSON mapping of OpenAI model names to Azure deployments: {'gpt-4o': 'gpt4o-prod', ...}""",
         permission_classes=[OnlyForAuthentized]
@@ -175,7 +182,7 @@ class EndpointConfigInsertGQLModel(InputModelMixin):
         description="""Base URL for the endpoint"""
     )
     
-    model_mapping: typing.Optional[typing.Any] = strawberry.field(
+    model_mapping: typing.Optional[str] = strawberry.field(
         description="""JSON mapping of OpenAI model names to Azure deployments""",
         default=None
     )
@@ -250,7 +257,7 @@ class EndpointConfigUpdateGQLModel:
         default=None
     )
     
-    model_mapping: typing.Optional[typing.Any] = strawberry.field(
+    model_mapping: typing.Optional[str] = strawberry.field(
         description="""JSON mapping of OpenAI model names to Azure deployments""",
         default=None
     )
@@ -306,7 +313,7 @@ class EndpointConfigMutation:
         - INVALID_ENDPOINT_TYPE: endpoint_type is not valid
         - INVALID_BASE_URL: base_url format is invalid
         """,
-        permission_classes=[OnlyForAuthentized, SimpleInsertPermission[EndpointConfigGQLModel]]
+        permission_classes=[OnlyForAuthentized]
     )
     async def endpoint_config_insert(
         self, 
@@ -395,7 +402,7 @@ class EndpointConfigMutation:
         - KEY_NOT_FOUND: Endpoint configuration with given ID not found
         - OPTIMISTIC_LOCKING_CONFLICT: Concurrent modification detected
         """,
-        permission_classes=[OnlyForAuthentized, SimpleUpdatePermission[EndpointConfigGQLModel]]
+        permission_classes=[OnlyForAuthentized]
     )
     async def endpoint_config_update(
         self, 
@@ -494,13 +501,13 @@ class EndpointConfigMutation:
         Error codes:
         - KEY_NOT_FOUND: Endpoint configuration with given ID not found
         """,
-        permission_classes=[OnlyForAuthentized, SimpleDeletePermission[EndpointConfigGQLModel]]
+        permission_classes=[OnlyForAuthentized]
     )
     async def endpoint_config_delete(
         self, 
         info: strawberry.types.Info,
         id: IDType
-    ) -> typing.Optional[EndpointConfigGQLModel]:
+    ) -> typing.Optional[DeleteError[EndpointConfigGQLModel]]:
         """
         Delete an endpoint configuration.
         
@@ -509,7 +516,7 @@ class EndpointConfigMutation:
             id: Endpoint configuration ID to delete
             
         Returns:
-            Delete result or error
+            None on success, DeleteError on failure
         """
         async_session_maker = info.context["asyncSessionMaker"]
         async with async_session_maker() as session:
@@ -522,7 +529,11 @@ class EndpointConfigMutation:
             existing = result.scalar_one_or_none()
             
             if existing is None:
-                return None
+                return DeleteError(
+                    id=id,
+                    msg=f"Endpoint configuration with id {id} not found",
+                    code="KEY_NOT_FOUND"
+                )
             
             # Store name for audit log before deletion
             name = existing.name

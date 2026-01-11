@@ -1,12 +1,12 @@
 Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na které okamžitě nepřijdeme.
 
-    3.10 Forknut github vybrání zadání (vybráno zadní 11.)
-    6.10 Chyb v importnutých packages ale Vidíme frontend s ChatGPT
+   3.10 Forknut github vybrání zadání (vybráno zadní 11.)
+   6.10 Chyb v importnutých packages ale Vidíme frontend s ChatGPT
             Fix: Za poocí force install přímo z updated git
          OPENAI_API_KEY - v řešení
             Skoro Fix: přidána podmínka pro tesstování když klíč není
 
-    6.10 Dokončení startup procesu a řešení NiceGUI problémů
+   6.10 Dokončení startup procesu a řešení NiceGUI problémů
             Problém: NiceGUI createGQLClient import error
             Fix: Přidán createGQLClient do main_mcp/__init__.py export
             Problém: DEMO environment variable missing při spuštění uvicorn
@@ -29,7 +29,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Učitel poslal: docker run --name postgres_evolution -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=example -e POSTGRES_DB=data -p 5432:5432 -d postgres
             Rozhodnutí: Zůstáváme u docker-compose setupu (pgvector, pgAdmin, frontend) <-- učitelovo pro jiné zadání
             
-    7.10 Dokončení Task 11 - Databázové modely a řešení startup problémů
+   7.10 Dokončení Task 11 - Databázové modely a řešení startup problémů
             Problém: Aplikace se nespouštěla kvůli SQLAlchemy relationship chybám
             Fix: Opraveny všechny relationship chyby v ApiKeyGQLModel a UsageDBModel:
                 - ApiKeyGQLModel: 
@@ -59,7 +59,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Aplikace je funkční a připravená pro implementaci Task 11 funkcionalit.
   
   
-    13.10 Dokončení GraphQL modelů a provázání systému
+   13.10 Dokončení GraphQL modelů a provázání systému
             Problém: Schema se nenačítalo kvůli chybám v InputFilter typech
             Fix: Opraveny všechny type errors v GraphQL modelech:
                 - ApiKeyInputFilter:
@@ -104,7 +104,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             
             Všechny modely jsou správně provázané a připravené pro implementaci business logiky.
     
-    13.10 Implementace Fáze 3 - GraphQL Queries a resolvers
+   13.10 Implementace Fáze 3 - GraphQL Queries a resolvers
             Úkol: Implementovat funkční query resolvers s filtrováním a autorizací
             
             Implementované funkce:
@@ -136,7 +136,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             - Filtrování a pagination ready
             - Dataloaders optimalizují databázové dotazy
     
-    13.10 Příprava na projektový den 27.10
+   13.10 Příprava na projektový den 27.10
             Úkol: Připravit demo pro "Jeden typ, ukázka čtení"
             
             Vytvořeno:
@@ -165,7 +165,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             - Máme ukázku čtení - splněno
             - Queries fungují - splněno
     
-    13.10 Implementace User Model podle Filipova návodu (učitelův zápisek)
+   13.10 Implementace User Model podle Filipova návodu (učitelův zápisek)
             Úkol: Vytvořit kompletní User model podle systematického návodu
             
             zápisek od učitele - Databázová část:
@@ -280,7 +280,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
 **Výsledek:** ✅ Aplikace běží na `http://127.0.0.1:8000`, userPage query by nyní měla fungovat
 
 
-    27.10 Projektový den a Oprava API Keys
+   27.10 Projektový den a Oprava API Keys
             Problém: apiKeyPage vrací prázdné pole (silent fail)
             Chyba: {"data": {"apiKeyPage": []}}
             
@@ -304,7 +304,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Status: ✅ VYŘEŠENO
             Výsledek: ✅ apiKeyPage dotaz nyní vrací API keys, všechny modely funkční
 
-    30.10 Příprava na projektový den #2 - Mutations
+   30.10 Příprava na projektový den #2 - Mutations
             Úkol: Implementovat mutations pro ApiKey a Usage models
             
             Implementováno:
@@ -324,7 +324,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Výsledek: ✅ apiKeyInsert, apiKeyUpdate, apiKeyDelete implementovány
             ✅ Prefix a key_hash se automaticky generují při Insert
 
-    03.11 Analýza Azure Proxy a Fáze 51.
+   03.11 Analýza Azure Proxy a Fáze 51.
             Úkol: Zjistit jak integrovat azure_proxy s gql_evolution
             
             Zjištěno:
@@ -351,7 +351,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Status: ✅ ANALÝZA UKONČENA
             Výsledek: ✅ Fáze 5 konečné (azure_proxy již má všechno implementováno)
 
-    03.11 Oprava apiKeyInsert mutation
+   03.11 Oprava apiKeyInsert mutation
             Problém: Mutation vracela InsertError kvůli chybám v extensions
             Chyby:
             - "'id'" - DoItSafeWay vyžaduje id v inputu
@@ -369,7 +369,7 @@ Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na kter
             Status: ✅ HOTOVO
             Výsledek: ✅ apiKeyInsert funguje, vytváří klíče s auto-generated prefix a key_hash
             
-    03.11 Oprava apiKeyUpdate/Delete mutations
+   03.11 Oprava apiKeyUpdate/Delete mutations
             Problém 1: Transaction konflikt s LoadDataExtension
             Chyba: "cannot use Connection.transaction() in a manually started transaction"
             Řešení: ✅ Odstraněn LoadDataExtension z apiKeyUpdate - funguje bez něj
@@ -812,11 +812,109 @@ Oznámení 2. projektového dne
 ✅ Změnil jsem návratové typy všech tří mutací:
    - `endpoint_config_insert`: `Insert[Model]` → `Union[EndpointConfigGQLModel, InsertError[EndpointConfigGQLModel]]`
    - `endpoint_config_update`: `Update[Model]` → `Union[EndpointConfigGQLModel, UpdateError[EndpointConfigGQLModel]]`
-   - `endpoint_config_delete`: `Delete[Model]` → `Optional[DeleteError[EndpointConfigGQLModel]]`
+   - `endpoint_config_delete`: `Optional[EndpointConfigGQLModel]` → `Optional[DeleteError[EndpointConfigGQLModel]]`
 ✅ Změnil jsem návratové hodnoty:
    - `Insert(id=..., msg="ok")` → `EndpointConfigGQLModel.from_dataclass(new_endpoint)`
    - `Update(id=..., msg="ok")` → `EndpointConfigGQLModel.from_dataclass(existing)`
-   - `Delete(id=..., msg="ok")` → `None` (při úspěchu)
+   - `None` (při nenalezení) → `DeleteError(id=..., msg="...", code="KEY_NOT_FOUND")`
+   - `None` (při úspěchu) → `None` (při úspěchu)
+✅ Nyní je konzistentní s ostatními delete mutacemi v projektu (ApiKeyGQLModel, UserGQLModel, atd.)
 
 **Status:** ✅ VŠECHNY CHYBY OPRAVENY A OVĚŘENY!
 **Výsledek:** ✅ Server úspěšně startuje na `http://127.0.0.1:8000`, GraphQL schema se načítá bez chyb, všechny mutace jsou funkční
+
+# ============================================
+# 11.1. - Opravy EndpointConfigGQLModel a Git cleanup
+# ============================================
+
+## 1. Problém s duplicitními Git repozitáři
+**Chyba:**
+- Uživatel měl dva git repozitáře: root (`D:\Stefek\.git`) a nested (`D:\Stefek\gql_evolution\.git`)
+- Oba repozitáře odkazovaly na stejný remote (https://github.com/FusiikCz/gql_evolution.git)
+- Git navrhoval commity z obou repozitářů, což způsobovalo zmatky
+- Root git měl 63 commitů (více pokroku), gql_evolution měl méně
+
+**Řešení:**
+1. Odstranil jsem `.git` složku z `gql_evolution/` pomocí: `Remove-Item -Recurse -Force gql_evolution\.git`
+2. Přidal jsem `gql_evolution/` do `.gitignore`, aby git tuto složku ignoroval
+3. Odstranil jsem soubory z `gql_evolution/` z git cache pomocí: `git rm --cached -r gql_evolution/`
+4. Aktualizoval jsem `commands.txt` - odstranil cestu `cd gql_evolution` z instrukcí
+
+**Výsledek:**
+- Nyní existuje pouze jeden git repository: `D:\Stefek\.git`
+- `gql_evolution/` složka zůstává na disku jako backup, ale git ji ignoruje
+- Git už nebude navrhovat commity z `gql_evolution/`
+
+## 2. TypeError: SimpleUpdatePermission.__class_getitem__.<locals>.result() missing 1 required positional argument: 'roles'
+**Chyba:**
+```
+TypeError: SimpleUpdatePermission.__class_getitem__.<locals>.result() missing 1 required positional argument: 'roles'
+File: src/GraphTypeDefinitions/EndpointConfigGQLModel.py, line 336
+permission_classes=[OnlyForAuthentized, SimpleInsertPermission[EndpointConfigGQLModel]]
+```
+
+**Příčina:**
+- `SimpleInsertPermission`, `SimpleUpdatePermission`, a `SimpleDeletePermission` vyžadují argument `roles`, který nebyl poskytnut
+- Tyto permission classes nejsou potřeba, pokud už používáme `OnlyForAuthentized`
+
+**Řešení:**
+1. Odstranil jsem všechny tři `Simple*Permission` třídy z `permission_classes` ve všech třech mutacích:
+   - `endpoint_config_insert` (řádek 309)
+   - `endpoint_config_update` (řádek 398)
+   - `endpoint_config_delete` (řádek 497)
+2. Odstranil jsem importy těchto tříd:
+   ```python
+   # PŘED:
+   from uoishelpers.gqlpermissions import (
+       OnlyForAuthentized,
+       SimpleInsertPermission, 
+       SimpleUpdatePermission, 
+       SimpleDeletePermission
+   )
+   
+   # PO:
+   from uoishelpers.gqlpermissions import (
+       OnlyForAuthentized
+   )
+   ```
+3. Všechny mutace nyní používají pouze: `permission_classes=[OnlyForAuthentized]`
+
+## 3. TypeError: Unexpected type 'typing.Any'
+**Chyba:**
+```
+TypeError: EndpointConfigGQLModel fields cannot be resolved. Unexpected type 'typing.Any'
+File: src/GraphTypeDefinitions/EndpointConfigGQLModel.py, line 331
+```
+
+**Příčina:**
+- Strawberry GraphQL nepodporuje `typing.Any` jako typ pro GraphQL fields
+- Pole `model_mapping` bylo definováno jako `typing.Optional[typing.Any]` ve třech místech:
+  1. `EndpointConfigGQLModel.model_mapping` (řádek 82)
+  2. `EndpointConfigInsertGQLModel.model_mapping` (řádek 175)
+  3. `EndpointConfigUpdateGQLModel.model_mapping` (řádek 250)
+
+**Řešení:**
+1. Změnil jsem typ `model_mapping` z `typing.Optional[typing.Any]` na `typing.Optional[str]` ve všech třech místech
+2. Přidal jsem override metody `from_dataclass` v `EndpointConfigGQLModel`, která převádí `model_mapping` z dict (z databáze) na JSON string (pro GraphQL):
+   ```python
+   @classmethod
+   def from_dataclass(cls, db_row):
+       """Override to convert model_mapping from dict to JSON string"""
+       db_row_dict = dataclasses.asdict(db_row)
+       # Convert model_mapping from dict to JSON string if it's a dict
+       if 'model_mapping' in db_row_dict and isinstance(db_row_dict['model_mapping'], dict):
+           db_row_dict['model_mapping'] = json.dumps(db_row_dict['model_mapping'])
+       instance = cls(**db_row_dict)
+       return instance
+   ```
+
+**Poznámka:**
+- V databázi je `model_mapping` uložen jako dict/JSON (pro SQLAlchemy)
+- V GraphQL schématu je `model_mapping` typu `String` (JSON serializovaný)
+- Metoda `from_dataclass` zajišťuje konverzi mezi těmito formáty
+
+## Shrnutí oprav:
+✅ Odstraněny duplicitní git repozitáře
+✅ Opraveny permission classes v EndpointConfig mutations
+✅ Opraven typ `model_mapping` z `typing.Any` na `typing.Optional[str]`
+✅ Přidána konverze `model_mapping` v `from_dataclass` metodě
