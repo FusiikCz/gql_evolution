@@ -82,7 +82,16 @@ class UsageInputFilter:
     )
 
 @strawberry.federation.type(
-    description="""Entity representing usage tracking for API Keys""",
+    description="""Entity representing usage tracking for API Keys.
+Usage records track every API request made with an API key, including tokens used, cost, status codes, and timing.
+Each usage record is linked to an API key via api_key_id and contains detailed request/response metadata.
+Usage data is used for analytics, billing, rate limiting enforcement, and usage quota tracking.
+Example use cases:
+- "Find all usage records for a specific API key"
+- "Get usage statistics by route or model"
+- "List failed requests (status codes >= 400)"
+- "Calculate total cost for a time period"
+Use UsageInputFilter with filters like api_key_id, route, model, status, ts (timestamp), and nested api_key filters.""",
     keys=["id"]
 )
 class UsageGQLModel(BaseGQLModel):
@@ -353,7 +362,8 @@ class UsageInsertGQLModel(InputModelMixin):
     getLoader = UsageGQLModel.getLoader
     
     api_key_id: IDType = strawberry.field(
-        description="""API Key that was used for this request"""
+        description="""API Key that was used for this request - foreign key to ApiKey entity.
+        @relation(to: ApiKeyGQLModel, field: 'id')"""
     )
     
     ts: datetime.datetime = strawberry.field(

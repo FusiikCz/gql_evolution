@@ -48,7 +48,15 @@ class EndpointConfigInputFilter:
     api_key_id: IDType
 
 @strawberry.federation.type(
-    description="""Entity representing an Endpoint Configuration for AI model access""",
+    description="""Entity representing an Endpoint Configuration for AI model access.
+Endpoint configurations define how to connect to AI model services (OpenAI, Azure OpenAI, custom endpoints).
+Each configuration specifies base URL, endpoint type (chat/completions), model mappings, and authentication.
+Endpoint configurations are linked to API keys via api_key_id for access control.
+Example use cases:
+- "Find endpoint configurations for OpenAI services"
+- "Get all active endpoint configurations"
+- "List endpoint configurations with model mappings"
+Use EndpointConfigInputFilter with filters like name, endpoint_type, base_url, is_active, and nested api_key filters.""",
     keys=["id"]
 )
 class EndpointConfigGQLModel(BaseGQLModel):
@@ -121,7 +129,8 @@ class EndpointConfigGQLModel(BaseGQLModel):
     # Relationships
     api_key_id: typing.Optional[IDType] = strawberry.field(
         default=None,
-        description="""API key that owns or created this endpoint configuration""",
+        description="""API key that owns or created this endpoint configuration - foreign key to ApiKey entity.
+        @relation(to: ApiKeyGQLModel, field: 'id')""",
         permission_classes=[OnlyForAuthentized]
     )
     
@@ -206,7 +215,8 @@ class EndpointConfigInsertGQLModel(InputModelMixin):
     )
     
     api_key_id: typing.Optional[IDType] = strawberry.field(
-        description="""API key that owns this endpoint configuration""",
+        description="""API key that owns this endpoint configuration - foreign key to ApiKey entity.
+        @relation(to: ApiKeyGQLModel, field: 'id')""",
         default=None
     )
     
@@ -280,7 +290,8 @@ class EndpointConfigUpdateGQLModel:
     )
     
     api_key_id: typing.Optional[IDType] = strawberry.field(
-        description="""API key that owns this endpoint configuration""",
+        description="""API key that owns this endpoint configuration - foreign key to ApiKey entity.
+        @relation(to: ApiKeyGQLModel, field: 'id')""",
         default=None
     )
 
@@ -305,7 +316,7 @@ class EndpointConfigMutation:
         self, 
         info: strawberry.types.Info,
         endpoint_config: EndpointConfigInsertGQLModel
-    ) -> Insert[EndpointConfigGQLModel]:
+    ) -> typing.Union[EndpointConfigGQLModel, InsertError[EndpointConfigGQLModel]]:
         """
         Insert a new endpoint configuration.
         
@@ -379,7 +390,7 @@ class EndpointConfigMutation:
                 f"name={endpoint_config.name}, endpoint_type={endpoint_config.endpoint_type}, base_url={endpoint_config.base_url}"
             )
             
-            return Insert(id=new_endpoint.id, msg="ok")
+            return EndpointConfigGQLModel.from_dataclass(new_endpoint)
 
     @strawberry.mutation(
         description="""Updates an existing endpoint configuration.
@@ -394,7 +405,7 @@ class EndpointConfigMutation:
         self, 
         info: strawberry.types.Info,
         endpoint_config: EndpointConfigUpdateGQLModel
-    ) -> Update[EndpointConfigGQLModel]:
+    ) -> typing.Union[EndpointConfigGQLModel, UpdateError[EndpointConfigGQLModel]]:
         """
         Update an existing endpoint configuration.
         
@@ -479,7 +490,7 @@ class EndpointConfigMutation:
                 f"is_active={existing.is_active}"
             )
             
-            return Update(id=existing.id, msg="ok")
+            return EndpointConfigGQLModel.from_dataclass(existing)
 
     @strawberry.mutation(
         description="""Deletes an endpoint configuration.
@@ -493,7 +504,7 @@ class EndpointConfigMutation:
         self, 
         info: strawberry.types.Info,
         id: IDType
-    ) -> Delete[EndpointConfigGQLModel]:
+    ) -> typing.Optional[EndpointConfigGQLModel]:
         """
         Delete an endpoint configuration.
         
@@ -515,11 +526,11 @@ class EndpointConfigMutation:
             existing = result.scalar_one_or_none()
             
             if existing is None:
-                return DeleteError(
-                    id=id,
-                    msg=f"Endpoint configuration with id {id} not found",
-                    code="KEY_NOT_FOUND"
-                )
+                return None
+            
+            # Store name for audit log before deletion
+            name = existing.name
+            endpoint_type = existing.endpoint_type
             
             await session.delete(existing)
             await session.commit()
@@ -532,8 +543,8 @@ class EndpointConfigMutation:
             user_id = user.id if user and hasattr(user, 'id') else (user.get('id') if user and isinstance(user, dict) else None)
             logger.info(
                 f"AUDIT: endpoint_config_delete - user_id={user_id}, endpoint_config_id={id}, "
-                f"name={existing.name}, endpoint_type={existing.endpoint_type}"
+                f"name={name}, endpoint_type={endpoint_type}"
             )
             
-            return Delete(id=id, msg="ok")
+            return None
 

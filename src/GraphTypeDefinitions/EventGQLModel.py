@@ -208,7 +208,8 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
 
     masterevent_id: typing.Optional[IDType] = strawberry.field(
         default=None,
-        description="""Event parent id""",
+        description="""Event parent id - foreign key to parent Event entity for hierarchical structure.
+        @relation(to: EventGQLModel, field: 'id')""",
         permission_classes=[
             OnlyForAuthentized
         ]
@@ -263,7 +264,8 @@ from uoishelpers.resolvers import TreeInputStructureMixin, InputModelMixin
 class EventInsertGQLModel(TreeInputStructureMixin):
     getLoader = EventGQLModel.getLoader
     masterevent_id: IDType = strawberry.field(
-        description="""Event parent id""",
+        description="""Event parent id - foreign key to parent Event entity for hierarchical structure.
+        @relation(to: EventGQLModel, field: 'id')""",
         # default=None
     )
     name: typing.Optional[str] = strawberry.field(

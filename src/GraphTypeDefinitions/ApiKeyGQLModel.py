@@ -152,7 +152,8 @@ class ApiKeyGQLModel(BaseGQLModel):
     # Foreign key fields (following BaseGQLModel pattern)
     user_id: typing.Optional[IDType] = strawberry.field(
         default=None,
-        description="""User who owns this API key""",
+        description="""User who owns this API key - foreign key to User entity.
+        @relation(to: UserGQLModel, field: 'id')""",
         permission_classes=[OnlyForAuthentized]
     )
 

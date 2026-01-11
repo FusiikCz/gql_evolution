@@ -55,7 +55,17 @@ for field "event" the filters could be
 """)
 
 @strawberry.federation.type(
-    keys=["id"], description="""Entity representing a Invitation to an Event and also presence of a user, invitation state and presence is managed by state"""
+    keys=["id"], 
+    description="""Entity representing an Invitation to an Event and user presence tracking.
+Event invitations link users to events and track invitation state (invited, accepted, declined, etc.).
+Each invitation connects a user (via user_id) to an event (via event_id) with a specific state (via state_id).
+Invitations manage user participation and presence in events for scheduling and attendance tracking.
+Example use cases:
+- "Find all invitations for a specific event"
+- "Get all events where user is invited"
+- "List accepted invitations for a user"
+- "Find invitations by state (invited, accepted, declined)"
+Use EventInvitationInputFilter with filters like event_id, user_id, state_id, and nested event/user filters."""
 )
 class EventInvitationGQLModel(BaseGQLModel):
 
@@ -64,7 +74,8 @@ class EventInvitationGQLModel(BaseGQLModel):
         return getLoadersFromInfo(info).EventInvitationModel
 
     event_id: typing.Optional[IDType] = strawberry.field(
-        description="""Event assigned to the invitation""",
+        description="""Event assigned to the invitation - foreign key to Event entity.
+        @relation(to: EventGQLModel, field: 'id')""",
         default=None,
         permission_classes=[
             OnlyForAuthentized
@@ -72,7 +83,8 @@ class EventInvitationGQLModel(BaseGQLModel):
     )
 
     user_id: typing.Optional[IDType] = strawberry.field( 
-        description="""User assigned to the invitation""",
+        description="""User assigned to the invitation - foreign key to User entity.
+        @relation(to: UserGQLModel, field: 'id')""",
         default=None,
         permission_classes=[
             OnlyForAuthentized

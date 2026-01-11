@@ -42,7 +42,16 @@ async def check_duplicate_email(
 
 @strawberry.federation.type(
     keys=["id"],
-    description="""Entity representing a user in the system"""
+    description="""Entity representing a user in the system.
+Users are external entities who own API keys and have access to AI model services.
+Each user can have multiple API keys, usage tracking, and authentication metadata.
+Users can be authenticated via external providers (Google, Microsoft, Azure AD) or internal accounts.
+Example use cases:
+- "Find user by email address"
+- "Get all API keys for a user"
+- "List active users with login history"
+- "Search users by name or email"
+Use UserInputFilter with filters like email, name, is_active, is_verified, and external provider information."""
 )
 class UserGQLModel(BaseGQLModel):
     """

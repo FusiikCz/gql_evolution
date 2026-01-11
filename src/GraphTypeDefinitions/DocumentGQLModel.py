@@ -60,7 +60,16 @@ class DocumentInputFilter:
 
 
 @strawberry.federation.type(
-    description="""Entity representing a Document""",
+    description="""Entity representing a Document in the system.
+Documents are hierarchical entities that can contain subdocuments and document fragments.
+Each document can have an embedding vector for semantic similarity search and metadata (name, description, URL).
+Documents maintain parent-child relationships through masterdocument_id for hierarchical organization.
+Example use cases:
+- "Find documents by name or description"
+- "Get all subdocuments of a parent document"
+- "Search documents using semantic similarity (embedding vectors)"
+- "List documents with associated fragments"
+Use DocumentInputFilter with filters like name, description, masterdocument_id, and vector similarity filters on embedding field.""",
     keys=["id"]
 )
 class DocumentGQLModel(BaseGQLModel):
