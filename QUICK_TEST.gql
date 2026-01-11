@@ -871,14 +871,20 @@ mutation DeactivateEndpointConfig($endpointConfigInput: EndpointConfigUpdateGQLM
 # }
 
 # --- DELETE: Smazání endpoint konfigurace ---
-mutation DeleteEndpointConfig($id: ID!, $lastchange: DateTime!) {
-  endpointConfigDelete(id: $id, lastchange: $lastchange) {
+mutation DeleteEndpointConfig($id: ID!) {
+  endpointConfigDelete(id: $id) {
     ... on DeleteError {
+      id
       msg
       code
     }
   }
 }
+
+# Variables example:
+# {
+#   "id": "PASTE_ENDPOINT_CONFIG_ID_HERE"
+# }
 
 # ============================================
 # SECTION 9: COMPLEX QUERIES (Advanced)

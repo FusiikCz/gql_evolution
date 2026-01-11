@@ -3,8 +3,7 @@ GQL Evolution - Quick Commands
 
 START APPLICATION (FULL SETUP - RECOMMENDED):
 -----------------------------------------------
-1. cd gql_evolution
-2. docker-compose up -d
+1. docker-compose up -d
 3. Set environment variables:
    $env:DEMO="true"
    $env:GQLUG_ENDPOINT_URL="http://localhost:8000"
