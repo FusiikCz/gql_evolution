@@ -6,10 +6,7 @@ import strawberry
 
 import strawberry.types
 from uoishelpers.gqlpermissions import (
-    OnlyForAuthentized,
-    SimpleInsertPermission, 
-    SimpleUpdatePermission, 
-    SimpleDeletePermission
+    OnlyForAuthentized
 )    
 from uoishelpers.resolvers import (
     getLoadersFromInfo, 
@@ -733,7 +730,7 @@ class ApiKeyMutation:
     @strawberry.mutation(
         description="""Delete an API Key""",
         permission_classes=[
-            SimpleDeletePermission[ApiKeyGQLModel](roles=["administrátor"])
+            OnlyForAuthentized
         ],
         extensions=[
             UserAccessControlExtension[DeleteError, ApiKeyGQLModel](
@@ -878,8 +875,12 @@ class ApiKeyMutation:
     @strawberry.mutation(
         description="""Deactivate all expired API keys (bulk operation)""",
         permission_classes=[
-            OnlyForAuthentized,
-            SimpleDeletePermission[ApiKeyGQLModel](roles=["administrátor"])
+            OnlyForAuthentized
+        ],
+        extensions=[
+            UserAccessControlExtension[ApiKeyGQLModel](
+                roles=["administrátor"]
+            )
         ]
     )
     async def deactivate_expired_api_keys(

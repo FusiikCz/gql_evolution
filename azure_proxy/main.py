@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .db import (
+from db import (
     AsyncSessionMaker,
     require_api_key,
     check_rate_limits,

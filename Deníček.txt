@@ -918,3 +918,77 @@ File: src/GraphTypeDefinitions/EndpointConfigGQLModel.py, line 331
 ✅ Opraveny permission classes v EndpointConfig mutations
 ✅ Opraven typ `model_mapping` z `typing.Any` na `typing.Optional[str]`
 ✅ Přidána konverze `model_mapping` v `from_dataclass` metodě
+
+11.1.2025 - Řešení Docker Compose problémů s azure_proxy
+
+**Problém 1: Port 8798 již obsazený**
+- Chyba: "Bind for 0.0.0.0:8798 failed: port is already allocated"
+- Příčina: Starý kontejner `gql_evolution-azure_proxy-1` stále běžel na portu 8798
+- Řešení: Zastaven starý kontejner pomocí `docker stop gql_evolution-azure_proxy-1`
+
+**Problém 2: Port 5434 již obsazený**
+- Chyba: "Bind for 0.0.0.0:5434 failed: port is already allocated"
+- Příčina: Starý PostgreSQL kontejner `gql_evolution-postgres_gql-1` stále běžel na portu 5434
+- Řešení: Zastaveny všechny staré kontejnery pomocí `docker stop` a `docker rm`
+
+**Problém 3: Import error v azure_proxy/main.py**
+- Chyba: "ImportError: attempted relative import with no known parent package"
+- Příčina: `from .db import` používalo relativní import, ale uvicorn spouští `main:app` jako modul
+- Řešení: Změněno `from .db import` na `from db import` (absolutní import)
+
+**Problém 4: Missing module 'src' v Docker kontejneru**
+- Chyba: "ModuleNotFoundError: No module named 'src'"
+- Příčina: Dockerfile kopíroval pouze `azure_proxy/` adresář, ale `db.py` potřebuje `src/DBDefinitions`
+- Řešení:
+  - Změněn build context v docker-compose.yaml z `./azure_proxy` na `.` (root)
+  - Upraven Dockerfile: `COPY azure_proxy/ /app/` a `COPY src/ /app/src/`
+  - Přidán git do Dockerfile (pro requirements.txt z GitHubu)
+
+**Problém 5: Connection refused k databázi**
+- Chyba: "ConnectionRefusedError: [Errno 111] Connection refused"
+- Příčina: `ComposeConnectionString()` používala default `localhost:5432`, ale v Docker Compose musí kontejnery komunikovat přes názvy služeb
+- Řešení: Přidány environment variables do docker-compose.yaml pro azure_proxy:
+  - `POSTGRES_HOST: postgres_gql:5432` (název služby z docker-compose, ne localhost)
+  - `POSTGRES_USER: postgres`
+  - `POSTGRES_PASSWORD: example`
+  - `POSTGRES_DB: data`
+  - Přidán `depends_on: postgres_gql: condition: service_healthy` pro čekání na healthy databázi
+
+**Status:** ✅ VYŘEŠENO
+
+**Výsledek:**
+- ✅ Všechny kontejnery běží správně:
+  - azure_proxy: běží na portu 8798 (Application startup complete)
+  - chatgpt-web: běží na portu 3000
+  - pgadmin: běží na portu 31800 (healthy)
+  - postgres_gql: běží na portu 5434 (healthy)
+- ✅ Azure proxy se úspěšně připojuje k databázi
+- ✅ Všechny tabulky vytvořeny (BaseModel.metadata.create_all finished)
+
+12.1.2025 - GraphQL Variables Warnings v terminálu (nejsou to skutečné chyby)
+
+**Čas:** 12. leden 2025
+**Kontext:** Testování GraphQL queries/mutations v QUICK_TEST.gql
+
+**Chyby v terminálu:**
+1. `Variable '$id' of required type 'UUID!' was not provided.` - GetApiKeyById query (řádek 992-998 v terminálu)
+2. `Variable '$apiKeyInput' of required type 'ApiKeyUpdateGQLModel!' was not provided.` - UpdateKey mutation (řádek 1002-1009 v terminálu)
+
+**Analýza:**
+- Tyto "chyby" jsou pouze varování GraphQL serveru, NE syntax chyby
+- QUICK_TEST.gql je soubor s příklady GraphQL queries/mutations
+- Když někdo spustí query/mutation, které vyžadují variables, ale variables nejsou poskytnuty, GraphQL server vrací tato varování
+- To je normální chování - není to chyba v QUICK_TEST.gql
+
+**Řešení:**
+1. Přidán komentář před `GetApiKeyById` query: "# TEST: Použijte ID z GetAllKeys query nebo z CreateTestKeyForCRUD"
+2. Přidán variables example pro `GetApiKeyById` s testovacím UUID a komentářem
+3. Ověřeno, že `UpdateKey` mutation už má variables example (správně)
+4. Vytvořen kompletní CRUD workflow (CreateKeyCRUDWorkflow → UpdateKeyCRUDWorkflow → DeleteKeyCRUDWorkflow) s podrobnými instrukcemi a variables examples
+
+**Závěr:**
+QUICK_TEST.gql je v pořádku - varování o chybějících variables jsou normální, když někdo spustí tyto příklady bez poskytnutí variables. Příklady jsou nyní konzistentně označené komentáři a variables examples.
+
+**Soubory změněny:**
+- `QUICK_TEST.gql` - přidány komentáře a variables examples pro queries/mutations vyžadující variables
+- `TASK_11_PLAN.md` - opraveny GraphQL příklady (CreateApiKey mutation selection set, odstraněn ApiKeyRegenerateResult s newPlaintextKey)

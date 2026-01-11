@@ -16,16 +16,33 @@
 # 4. DELETE - Spusť DeleteEndpointConfig (smaže konfiguraci podle ID z kroku 2)
 #
 # ============================================
+# TESTOVACÍ HODNOTY (Test Data)
+# ============================================
+# 
+# Tyto hodnoty jsou připravené pro rychlé testování.
+# POZNÁMKA: Pro produkční použití použijte skutečné ID z databáze!
+#
+# Testovací UUID (použijte pro testování nebo nahraďte skutečnými hodnotami):
+# - Test Event ID:      "a1b2c3d4-e5f6-4789-a012-3456789abcde"
+# - Test User ID:       "2d9dc5ca-a4a2-11ed-b9df-0242ac120003"
+# - Test Document ID:   "f1e2d3c4-b5a6-4987-c012-def012345678"
+# - Test Invitation ID: "12345678-90ab-cdef-1234-567890abcdef"
+# - Test Fragment ID:   "98765432-10fe-dcba-9876-543210fedcba"
+# - Test Endpoint Config ID: "abcdef12-3456-7890-abcd-ef1234567890"
+#
+# Testovací DateTime (lastchange):
+# - "2025-01-15T10:30:00"
+#
+# Event Invitation States (stavové UUID - pevně dané):
+# - 'invited':   "01b96c1d-8389-4267-a859-d8116e1c32f3"
+# - 'accepted':  "7d2ef223-b60e-4e6d-b7d5-5fdc1f8e2ec2"
+# - 'declined':  "d6a5e9e4-3e47-4c95-a4aa-b194dd2bc3a7"
+#
+# ============================================
 
 # ============================================
 # GRAPHQL FRAGMENTS (Best Practice - reuse)
 # ============================================
-
-fragment BaseFields on BaseGQLModel {
-  id
-  created
-  lastchange
-}
 
 fragment ApiKeyFields on ApiKeyGQLModel {
   id
@@ -51,19 +68,19 @@ fragment UserFields on UserGQLModel {
   id
   name
   email
-  isActive: is_active
-  isVerified: is_verified
+  is_active
+  is_verified
   timezone
-  maxApiKeys: max_api_keys
-  displayName: display_name
-  statusDescription: status_description
+  max_api_keys
+  displayName
+  statusDescription
   createdAt: created
 }
 
 fragment EventFields on EventGQLModel {
   id
   name
-  nameEn: name_en
+  nameEn
   description
   startdate
   enddate
@@ -76,7 +93,7 @@ fragment EventFields on EventGQLModel {
 fragment DocumentFields on DocumentGQLModel {
   id
   name
-  nameEn: name_en
+  nameEn
   description
   url
   createdAt: created
@@ -85,16 +102,16 @@ fragment DocumentFields on DocumentGQLModel {
 fragment EndpointConfigFields on EndpointConfigGQLModel {
   id
   name
-  endpointType: endpoint_type
-  baseUrl: base_url
-  modelMapping: model_mapping        # JSON string: {"gpt-4o": "gpt4o-prod", ...}
-  defaultDeployment: default_deployment
-  apiVersion: api_version
-  sharedTokenHash: shared_token_hash  # Hashed token (read-only)
-  tokenPrefix: token_prefix           # Token prefix for lookup (read-only)
-  isActive: is_active
+  endpointType
+  baseUrl
+  modelMapping        # JSON string: {"gpt-4o": "gpt4o-prod", ...}
+  defaultDeployment
+  apiVersion
+  sharedTokenHash  # Hashed token (read-only)
+  tokenPrefix           # Token prefix for lookup (read-only)
+  isActive
   description
-  apiKeyId: api_key_id
+  apiKeyId
   apiKey {                           # Related API key (if exists)
     id
     name
@@ -148,6 +165,32 @@ mutation CreateKeyWithLimits {
   }
 }
 
+# --- CREATE: Testovací klíč pro UPDATE/DELETE operace ---
+# TEST: Tento klíč je určen pro testování UPDATE a DELETE operací
+# POZNÁMKA: Po vytvoření si zkopírujte ID a lastchange z odpovědi pro UPDATE/DELETE
+mutation CreateTestKeyForCRUD {
+  apiKeyInsert(apiKey: { 
+    name: "Test Key for UPDATE/DELETE"
+    rateLimitPerMinute: 75
+    rateLimitPerHour: 3000
+    rateLimitPerDay: 50000
+    maxTokensPerMonth: 500000
+    maxCostPerMonth: 50.0
+    expiresAt: "2025-06-30T23:59:59Z"
+  }) {
+    ... on ApiKeyInsertResponse {
+      plaintextKey                    # ⚠️ DŮLEŽITÉ: Ulož si tento klíč! Zobrazí se jen jednou!
+      apiKey {
+        ...ApiKeyFields
+      }
+    }
+    ... on InsertError {
+      msg
+      code
+    }
+  }
+}
+
 # --- READ: Získání seznamu všech klíčů ---
 query GetAllKeys {
   apiKeyPage {
@@ -170,7 +213,8 @@ query ExpiredApiKeys {
 }
 
 # --- READ: Klíč podle ID ---
-query GetApiKeyById($id: ID!) {
+# TEST: Použijte ID z GetAllKeys query nebo z CreateTestKeyForCRUD
+query GetApiKeyById($id: UUID!) {
   apiKeyById(id: $id) {
     ...ApiKeyFields
     user {
@@ -187,68 +231,182 @@ query GetApiKeyById($id: ID!) {
   }
 }
 
+# Variables example - TEST:
+# {
+#   "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"  # Test API Key ID (nahraďte skutečným z GetAllKeys)
+# }
+
 # --- UPDATE: S variables (doporučený způsob) ---
 mutation UpdateKey($apiKeyInput: ApiKeyUpdateGQLModel!) {
   apiKeyUpdate(apiKey: $apiKeyInput) {
     ... on ApiKeyGQLModel {
       ...ApiKeyFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
-# Variables example:
+# Variables example - TEST (použijte ID a lastchange z CreateTestKeyForCRUD):
 # {
 #   "apiKeyInput": {
-#     "id": "c2436db6-8773-4d88-99a5-779ad85fa255",
-#     "lastchange": "2025-11-03T08:03:03.128789",
-#     "name": "Updated Production Key",
+#     "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",  # Test API Key ID (nahraďte skutečným z CreateTestKeyForCRUD)
+#     "lastchange": "2025-01-15T10:30:00",            # Test DateTime (nahraďte skutečným z CreateTestKeyForCRUD)
+#     "name": "Updated Test Key",
 #     "isActive": true,
-#     "rateLimitPerMinute": 200
+#     "rateLimitPerMinute": 150,
+#     "rateLimitPerHour": 6000,
+#     "rateLimitPerDay": 80000
 #   }
 # }
 
 # --- DEACTIVATE: Soft delete ---
+# TEST: Použijte ID a lastchange z CreateTestKeyForCRUD nebo z UPDATE operace
 mutation DeactivateKey($apiKeyInput: ApiKeyUpdateGQLModel!) {
   apiKeyDeactivate(apiKey: $apiKeyInput) {
     ... on ApiKeyGQLModel {
       ...ApiKeyFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
+# Variables example - TEST (použijte ID a lastchange z CreateTestKeyForCRUD nebo UPDATE):
+# {
+#   "apiKeyInput": {
+#     "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",  # Test API Key ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00"             # Test DateTime (nahraďte skutečným)
+#   }
+# }
+
 # --- REGENERATE: Vygeneruje nový prefix a hash ---
-mutation RegenerateKey($apiKeyInput: ApiKeyUpdateGQLModel!) {
+# TEST: Použijte ID a lastchange z CreateTestKeyForCRUD nebo z UPDATE operace
+mutation RegenerateKey($apiKeyInput: ApiKeyRegenerateGQLModel!) {
   apiKeyRegenerate(apiKey: $apiKeyInput) {
     ... on ApiKeyGQLModel {
       ...ApiKeyFields
     }
-    ... on UpdateError {
+  }
+}
+
+# Variables example - TEST (použijte ID a lastchange z CreateTestKeyForCRUD nebo UPDATE):
+# {
+#   "apiKeyInput": {
+#     "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",  # Test API Key ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00"             # Test DateTime (nahraďte skutečným)
+#   }
+# }
+
+# --- DELETE: Smazání klíče ---
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+# TEST: Použijte ID a lastchange z CreateTestKeyForCRUD nebo z UPDATE operace
+mutation DeleteKey($id: UUID!, $lastchange: DateTime!) {
+  apiKeyDelete(apiKey: {
+    id: $id
+    lastchange: $lastchange
+  })
+}
+
+# Variables example - TEST (použijte ID a lastchange z CreateTestKeyForCRUD nebo UPDATE):
+# {
+#   "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",  # Test API Key ID (nahraďte skutečným)
+#   "lastchange": "2025-01-15T10:30:00"             # Test DateTime (nahraďte skutečným)
+# }
+
+# ============================================
+# KOMPLETNÍ CRUD WORKFLOW (CREATE → UPDATE → DELETE)
+# ============================================
+#
+# Tento workflow ukazuje kompletní životní cyklus API klíče:
+# 1. CREATE - Vytvoří nový klíč
+# 2. UPDATE - Upraví klíč (použijte ID a lastchange z CREATE)
+# 3. DELETE - Smaže klíč (použijte ID a lastchange z UPDATE)
+#
+# POSTUP:
+# 1. Spusť CreateKeyCRUDWorkflow (KROK 1)
+# 2. Zkopírujte ID a lastchange z odpovědi
+# 3. Spusť UpdateKeyCRUDWorkflow s ID a lastchange z kroku 1 (KROK 2)
+# 4. Zkopírujte nový lastchange z odpovědi
+# 5. Spusť DeleteKeyCRUDWorkflow s ID a lastchange z kroku 2 (KROK 3)
+
+# --- KROK 1: CREATE - Vytvoření nového API klíče ---
+mutation CreateKeyCRUDWorkflow {
+  apiKeyInsert(apiKey: {
+    name: "CRUD Workflow Test Key"
+    rateLimitPerMinute: 100
+    rateLimitPerHour: 5000
+    rateLimitPerDay: 100000
+    maxTokensPerMonth: 1000000
+    maxCostPerMonth: 100.0
+    expiresAt: "2025-12-31T23:59:59Z"
+  }) {
+    ... on ApiKeyInsertResponse {
+      plaintextKey                    # ⚠️ DŮLEŽITÉ: Ulož si tento klíč! Zobrazí se jen jednou!
+      apiKey {
+        id                            # ✅ ZKOPÍRUJ TOTO ID PRO KROK 2
+        lastchange                    # ✅ ZKOPÍRUJ TOTO lastchange PRO KROK 2
+        name
+        prefix
+        isActive
+        rateLimitPerMinute
+        rateLimitPerHour
+        rateLimitPerDay
+        maxTokensPerMonth
+        maxCostPerMonth
+        expiresAt
+      }
+    }
+    ... on InsertError {
       msg
       code
     }
   }
 }
 
-# --- DELETE: Smazání klíče ---
-mutation DeleteKey($id: ID!, $lastchange: DateTime!) {
-  apiKeyDelete(apiKey: {
-    id: $id
-    lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
+# --- KROK 2: UPDATE - Aktualizace API klíče (použijte ID a lastchange z KROKU 1) ---
+mutation UpdateKeyCRUDWorkflow($apiKeyInput: ApiKeyUpdateGQLModel!) {
+  apiKeyUpdate(apiKey: $apiKeyInput) {
+    ... on ApiKeyGQLModel {
+      id                              # ✅ ZKOPÍRUJ TOTO ID PRO KROK 3
+      lastchange                      # ✅ ZKOPÍRUJ TOTO lastchange PRO KROK 3
+      name
+      prefix
+      isActive
+      rateLimitPerMinute
+      rateLimitPerHour
+      rateLimitPerDay
+      maxTokensPerMonth
+      maxCostPerMonth
+      expiresAt
     }
   }
 }
+
+# Variables example pro KROK 2 (použijte ID a lastchange z KROKU 1 - CreateKeyCRUDWorkflow):
+# {
+#   "apiKeyInput": {
+#     "id": "PASTE_ID_FROM_STEP_1_HERE",           # ID z CreateKeyCRUDWorkflow odpovědi
+#     "lastchange": "PASTE_LASTCHANGE_FROM_STEP_1_HERE",  # lastchange z CreateKeyCRUDWorkflow odpovědi
+#     "name": "Updated CRUD Workflow Test Key",
+#     "isActive": true,
+#     "rateLimitPerMinute": 150,
+#     "rateLimitPerHour": 6000,
+#     "rateLimitPerDay": 120000,
+#     "maxTokensPerMonth": 2000000,
+#     "maxCostPerMonth": 200.0
+#   }
+# }
+
+# --- KROK 3: DELETE - Smazání API klíče (použijte ID a lastchange z KROKU 2) ---
+mutation DeleteKeyCRUDWorkflow($id: UUID!, $lastchange: DateTime!) {
+  apiKeyDelete(apiKey: {
+    id: $id
+    lastchange: $lastchange
+  })
+}
+
+# Variables example pro KROK 3 (použijte ID a lastchange z KROKU 2 - UpdateKeyCRUDWorkflow):
+# {
+#   "id": "PASTE_ID_FROM_STEP_2_HERE",           # ID z UpdateKeyCRUDWorkflow odpovědi
+#   "lastchange": "PASTE_LASTCHANGE_FROM_STEP_2_HERE"  # lastchange z UpdateKeyCRUDWorkflow odpovědi
+# }
 
 # ============================================
 # SECTION 2: USER OPERATIONS
@@ -270,18 +428,16 @@ query ActiveUsers {
 
 # --- READ: Vyhledávání uživatelů ---
 query SearchUsers($searchTerm: String!) {
-  searchUsers(search_term: $searchTerm, skip: 0, limit: 10) {
+  searchUsers(searchTerm: $searchTerm, skip: 0, limit: 10) {
     ...UserFields
   }
 }
 
 # --- READ: Uživatel podle ID ---
-query GetUserById($id: ID!) {
+query GetUserById($id: UUID!) {
   userById(id: $id) {
     ...UserFields
-    apiKeys {
-      ...ApiKeyFields
-    }
+    # apiKeys field neexistuje - použij apiKeyPage query místo toho
   }
 }
 
@@ -311,24 +467,16 @@ mutation UpdateUser($userInput: UserUpdateGQLModel!) {
     ... on UserGQLModel {
       ...UserFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
 # --- DELETE: Smazání uživatele ---
-mutation DeleteUser($id: ID!, $lastchange: DateTime!) {
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteUser($id: UUID!, $lastchange: DateTime!) {
   userDelete(user: {
     id: $id
     lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
-    }
-  }
+  })
 }
 
 # ============================================
@@ -336,7 +484,7 @@ mutation DeleteUser($id: ID!, $lastchange: DateTime!) {
 # ============================================
 
 # --- READ: Usage statistiky ---
-query GetUsageStats($apiKeyId: ID!) {
+query GetUsageStats($apiKeyId: UUID!) {
   apiKeyById(id: $apiKeyId) {
     id
     name
@@ -375,7 +523,7 @@ query GetUsagePage {
 }
 
 # --- READ: Usage podle ID ---
-query GetUsageById($id: ID!) {
+query GetUsageById($id: UUID!) {
   usageById(id: $id) {
     id
     ts
@@ -406,13 +554,13 @@ query GetAllEvents {
       user {
         ...UserFields
       }
-      stateId: state_id
+      stateId
     }
   }
 }
 
 # --- READ: Událost podle ID ---
-query GetEventById($id: ID!) {
+query GetEventById($id: UUID!) {
   eventById(id: $id) {
     ...EventFields
     userInvitations {
@@ -425,14 +573,16 @@ query GetEventById($id: ID!) {
 }
 
 # --- CREATE: Vytvoření události ---
+# POZNÁMKA: mastereventId je povinné pole - použij UUID rodičovské události nebo null UUID pro root
 mutation CreateEvent {
   eventInsert(event: {
+    mastereventId: "00000000-0000-0000-0000-000000000000"  # Root event (null UUID pro top-level)
     name: "Tech Conference 2025"
     nameEn: "Tech Conference 2025"
     description: "Annual technology conference"
-    startdate: "2025-06-15T09:00:00Z"
-    enddate: "2025-06-17T17:00:00Z"
-    place: "Prague Convention Centre"
+    startDate: "2025-06-15T09:00:00Z"
+    endDate: "2025-06-17T17:00:00Z"
+    # POZNÁMKA: place field není v EventInsertGQLModel, pouze v EventGQLModel
   }) {
     ... on EventGQLModel {
       ...EventFields
@@ -450,24 +600,16 @@ mutation UpdateEvent($eventInput: EventUpdateGQLModel!) {
     ... on EventGQLModel {
       ...EventFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
 # --- DELETE: Smazání události ---
-mutation DeleteEvent($id: ID!, $lastchange: DateTime!) {
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteEvent($id: UUID!, $lastchange: DateTime!) {
   eventDelete(event: {
     id: $id
     lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
-    }
-  }
+  })
 }
 
 # ============================================
@@ -484,16 +626,17 @@ query GetAllInvitations {
     user {
       ...UserFields
     }
-    stateId: state_id
+    stateId
     createdAt: created
   }
 }
 
 # --- CREATE: Vytvoření pozvánky ---
+# TEST: Použijte testovací hodnoty z hlavičky souboru nebo skutečné ID z databáze
 mutation CreateInvitation {
   eventInvitationInsert(invitation: {
-    eventId: "PASTE_EVENT_ID_HERE"
-    userId: "PASTE_USER_ID_HERE"
+    eventId: "a1b2c3d4-e5f6-4789-a012-3456789abcde"  # Test Event ID (nahraďte skutečným)
+    userId: "2d9dc5ca-a4a2-11ed-b9df-0242ac120003"   # Test User ID (nahraďte skutečným)
     stateId: "01b96c1d-8389-4267-a859-d8116e1c32f3"  # 'invited'
   }) {
     ... on EventInvitationGQLModel {
@@ -504,7 +647,7 @@ mutation CreateInvitation {
       user {
         ...UserFields
       }
-      stateId: state_id
+      stateId
     }
     ... on InsertError {
       msg
@@ -518,7 +661,7 @@ mutation AcceptDeclineInvitation($invitationInput: EventInvitationUpdateGQLModel
   eventInvitationAcceptDecline(invitation: $invitationInput) {
     ... on EventInvitationGQLModel {
       id
-      stateId: state_id
+      stateId
       event {
         ...EventFields
       }
@@ -526,42 +669,34 @@ mutation AcceptDeclineInvitation($invitationInput: EventInvitationUpdateGQLModel
         ...UserFields
       }
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
-# Variables example (accept):
+# Variables example (accept) - TEST:
 # {
 #   "invitationInput": {
-#     "id": "PASTE_INVITATION_ID_HERE",
-#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "id": "12345678-90ab-cdef-1234-567890abcdef",  # Test Invitation ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00",            # Test DateTime (nahraďte skutečným)
 #     "stateId": "7d2ef223-b60e-4e6d-b7d5-5fdc1f8e2ec2"  # 'accepted'
 #   }
 # }
 
-# Variables example (decline):
+# Variables example (decline) - TEST:
 # {
 #   "invitationInput": {
-#     "id": "PASTE_INVITATION_ID_HERE",
-#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "id": "12345678-90ab-cdef-1234-567890abcdef",  # Test Invitation ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00",            # Test DateTime (nahraďte skutečným)
 #     "stateId": "d6a5e9e4-3e47-4c95-a4aa-b194dd2bc3a7"  # 'declined'
 #   }
 # }
 
 # --- DELETE: Smazání pozvánky ---
-mutation DeleteInvitation($id: ID!, $lastchange: DateTime!) {
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteInvitation($id: UUID!, $lastchange: DateTime!) {
   eventInvitationDelete(invitation: {
     id: $id
     lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
-    }
-  }
+  })
 }
 
 # ============================================
@@ -576,13 +711,13 @@ query GetAllDocuments {
       id
       title
       summary
-      orderIndex: order_index
+      orderIndex
     }
   }
 }
 
 # --- READ: Dokument podle ID ---
-query GetDocumentById($id: ID!) {
+query GetDocumentById($id: UUID!) {
   documentById(id: $id) {
     ...DocumentFields
     fragments {
@@ -590,14 +725,16 @@ query GetDocumentById($id: ID!) {
       title
       summary
       content
-      orderIndex: order_index
+      orderIndex
     }
   }
 }
 
 # --- CREATE: Vytvoření dokumentu ---
+# POZNÁMKA: masterdocumentId je povinné pole - použij UUID rodičovského dokumentu nebo null UUID pro root
 mutation CreateDocument {
   documentInsert(document: {
+    masterdocumentId: "00000000-0000-0000-0000-000000000000"  # Root document (null UUID pro top-level)
     name: "API Documentation"
     nameEn: "API Documentation"
     description: "Complete API documentation"
@@ -619,24 +756,16 @@ mutation UpdateDocument($documentInput: DocumentUpdateGQLModel!) {
     ... on DocumentGQLModel {
       ...DocumentFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
 # --- DELETE: Smazání dokumentu ---
-mutation DeleteDocument($id: ID!, $lastchange: DateTime!) {
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteDocument($id: UUID!, $lastchange: DateTime!) {
   documentDelete(document: {
     id: $id
     lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
-    }
-  }
+  })
 }
 
 # ============================================
@@ -647,11 +776,11 @@ mutation DeleteDocument($id: ID!, $lastchange: DateTime!) {
 query GetAllFragments {
   documentFragmentPage(skip: 0, limit: 50) {
     id
-    documentId: document_id
+    documentId
     title
     summary
     content
-    orderIndex: order_index
+    orderIndex
     document {
       ...DocumentFields
     }
@@ -660,9 +789,10 @@ query GetAllFragments {
 }
 
 # --- CREATE: Vytvoření fragmentu ---
+# TEST: Použijte testovací hodnoty z hlavičky souboru nebo skutečné ID z databáze
 mutation CreateFragment {
   documentFragmentInsert(fragment: {
-    documentId: "PASTE_DOCUMENT_ID_HERE"
+    documentId: "f1e2d3c4-b5a6-4987-c012-def012345678"  # Test Document ID (nahraďte skutečným)
     title: "Introduction"
     summary: "Document introduction"
     content: "This is the introduction section..."
@@ -670,11 +800,11 @@ mutation CreateFragment {
   }) {
     ... on DocumentFragmentGQLModel {
       id
-      documentId: document_id
+      documentId
       title
       summary
       content
-      orderIndex: order_index
+      orderIndex
     }
     ... on InsertError {
       msg
@@ -691,26 +821,18 @@ mutation UpdateFragment($fragmentInput: DocumentFragmentUpdateGQLModel!) {
       title
       summary
       content
-      orderIndex: order_index
-    }
-    ... on UpdateError {
-      msg
-      code
+      orderIndex
     }
   }
 }
 
 # --- DELETE: Smazání fragmentu ---
-mutation DeleteFragment($id: ID!, $lastchange: DateTime!) {
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteFragment($id: UUID!, $lastchange: DateTime!) {
   documentFragmentDelete(fragment: {
     id: $id
     lastchange: $lastchange
-  }) {
-    ... on DeleteError {
-      msg
-      code
-    }
-  }
+  })
 }
 
 # ============================================
@@ -740,14 +862,14 @@ query GetAllEndpointConfigs {
 
 # --- READ: Aktivní endpoint konfigurace (s filtrem) ---
 query GetActiveEndpointConfigs {
-  endpointConfigPage(where: { isActive: { _eq: true } }) {
+  endpointConfigPage(where: { is_active: { _eq: true } }) {
     ...EndpointConfigFields
   }
 }
 
 # --- READ: Endpoint konfigurace podle typu ---
 query GetEndpointConfigsByType($endpointType: String!) {
-  endpointConfigPage(where: { endpointType: { _eq: $endpointType } }) {
+  endpointConfigPage(where: { endpoint_type: { _eq: $endpointType } }) {
     ...EndpointConfigFields
   }
 }
@@ -758,7 +880,7 @@ query GetEndpointConfigsByType($endpointType: String!) {
 # }
 
 # --- READ: Endpoint konfigurace podle ID ---
-query GetEndpointConfigById($id: ID!) {
+query GetEndpointConfigById($id: UUID!) {
   endpointConfigById(id: $id) {
     ...EndpointConfigFields
   }
@@ -830,18 +952,14 @@ mutation UpdateEndpointConfig($endpointConfigInput: EndpointConfigUpdateGQLModel
     ... on EndpointConfigGQLModel {
       ...EndpointConfigFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
-# Variables example:
+# Variables example - TEST:
 # {
 #   "endpointConfigInput": {
-#     "id": "PASTE_ENDPOINT_CONFIG_ID_HERE",
-#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "id": "abcdef12-3456-7890-abcd-ef1234567890",  # Test Endpoint Config ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00",            # Test DateTime (nahraďte skutečným)
 #     "name": "Updated Azure OpenAI Production",
 #     "isActive": true,
 #     "modelMapping": "{\"gpt-4o\": \"gpt4o-prod-new\", \"gpt-4o-mini\": \"gpt4o-mini-prod\"}"
@@ -854,36 +972,27 @@ mutation DeactivateEndpointConfig($endpointConfigInput: EndpointConfigUpdateGQLM
     ... on EndpointConfigGQLModel {
       ...EndpointConfigFields
     }
-    ... on UpdateError {
-      msg
-      code
-    }
   }
 }
 
-# Variables example:
+# Variables example - TEST:
 # {
 #   "endpointConfigInput": {
-#     "id": "PASTE_ENDPOINT_CONFIG_ID_HERE",
-#     "lastchange": "PASTE_LASTCHANGE_HERE",
+#     "id": "abcdef12-3456-7890-abcd-ef1234567890",  # Test Endpoint Config ID (nahraďte skutečným)
+#     "lastchange": "2025-01-15T10:30:00",            # Test DateTime (nahraďte skutečným)
 #     "isActive": false
 #   }
 # }
 
 # --- DELETE: Smazání endpoint konfigurace ---
-mutation DeleteEndpointConfig($id: ID!) {
-  endpointConfigDelete(id: $id) {
-    ... on DeleteError {
-      id
-      msg
-      code
-    }
-  }
+# POZNÁMKA: Delete mutace vrací Optional[DeleteError], takže při úspěchu vrací null
+mutation DeleteEndpointConfig($id: UUID!) {
+  endpointConfigDelete(id: $id)
 }
 
-# Variables example:
+# Variables example - TEST:
 # {
-#   "id": "PASTE_ENDPOINT_CONFIG_ID_HERE"
+#   "id": "abcdef12-3456-7890-abcd-ef1234567890"  # Test Endpoint Config ID (nahraďte skutečným)
 # }
 
 # ============================================
@@ -891,24 +1000,16 @@ mutation DeleteEndpointConfig($id: ID!) {
 # ============================================
 
 # --- Komplexní query: Uživatel s API klíči a usage ---
-query GetUserWithKeysAndUsage($userId: ID!) {
+# POZNÁMKA: apiKeys field neexistuje - použij samostatnou query apiKeyPage s filtrem userId místo toho
+query GetUserWithKeysAndUsage($userId: UUID!) {
   userById(id: $userId) {
     ...UserFields
-    apiKeys {
-      ...ApiKeyFields
-      usage {
-        id
-        ts
-        totalTokens
-        costUsd
-        route
-      }
-    }
+    # apiKeys field neexistuje - použij samostatnou query apiKeyPage s filtrem userId místo toho
   }
 }
 
 # --- Komplexní query: Event s pozvánkami ---
-query GetEventWithInvitations($eventId: ID!) {
+query GetEventWithInvitations($eventId: UUID!) {
   eventById(id: $eventId) {
     ...EventFields
     userInvitations {
@@ -916,13 +1017,13 @@ query GetEventWithInvitations($eventId: ID!) {
       user {
         ...UserFields
       }
-      stateId: state_id
+      stateId
     }
   }
 }
 
 # --- Komplexní query: Dokument s fragmenty ---
-query GetDocumentWithFragments($documentId: ID!) {
+query GetDocumentWithFragments($documentId: UUID!) {
   documentById(id: $documentId) {
     ...DocumentFields
     fragments {
@@ -930,7 +1031,7 @@ query GetDocumentWithFragments($documentId: ID!) {
       title
       summary
       content
-      orderIndex: order_index
+      orderIndex
     }
   }
 }
@@ -940,11 +1041,9 @@ query GetDocumentWithFragments($documentId: ID!) {
 # ============================================
 
 # --- Deaktivace expirovaných klíčů ---
+# POZNÁMKA: deactivateExpiredApiKeys vrací Int (počet deaktivovaných), ne objekt
 mutation DeactivateExpiredKeys {
-  deactivateExpiredApiKeys {
-    count
-    deactivatedIds
-  }
+  deactivateExpiredApiKeys
 }
 
 # --- Hello world test ---

@@ -241,8 +241,8 @@ Implementace UserDBModel podle systematického návodu od učitele:
 - apiKeyInsert(apiKey: ApiKeyInsertInput!): ApiKeyInsertResult!
 - apiKeyUpdate(apiKey: ApiKeyUpdateInput!): ApiKeyUpdateResult!
 - apiKeyDelete(id: UUID!): ApiKeyDeleteResult!
-- apiKeyDeactivate(id: UUID!): ApiKeyUpdateResult!
-- apiKeyRegenerate(id: UUID!): ApiKeyRegenerateResult!
+- apiKeyDeactivate(apiKey: ApiKeyUpdateGQLModel!): ApiKeyUpdateResult!
+- apiKeyRegenerate(apiKey: ApiKeyRegenerateGQLModel!): ApiKeyRegenerateResult!
 ```
 
 **Konkrétní úkoly:**
@@ -567,12 +567,8 @@ type ApiKeyDeleteResult {
   msg: String!
 }
 
-type ApiKeyRegenerateResult {
-  id: UUID!
-  apiKey: ApiKeyGQLModel!
-  newPlaintextKey: String!
-  msg: String!
-}
+# POZNÁMKA: ApiKeyRegenerateResult byl nahrazen Union typem ApiKeyGQLModel | UpdateError
+# newPlaintextKey neexistuje - regenerace nevrací nový plaintext klíč z bezpečnostních důvodů
 ```
 
 ## 🔐 Autorizační logika
@@ -724,8 +720,8 @@ query MyApiKeys {
 # Filtrované vyhledávání klíčů
 query ApiKeysWithFilter {
   apiKeyPage(where: {
-    isActive: {equals: true}
-    expiresAt: {gt: "2024-12-31T23:59:59Z"}
+    is_active: {_eq: true}
+    expires_at: {_gt: "2024-12-31T23:59:59Z"}
   }) {
     id
     name
@@ -740,13 +736,13 @@ query UsageAnalytics($apiKeyId: UUID!) {
   apiKeyById(id: $apiKeyId) {
     name
     usage(where: {
-      timestamp: {gte: "2024-01-01T00:00:00Z"}
+      ts: {_gte: "2024-01-01T00:00:00Z"}
     }) {
-      timestamp
+      ts
       totalTokens
       costUsd
       deployment
-      statusCode
+      status
     }
     totalUsageThisMonth
     totalCostThisMonth
@@ -773,21 +769,32 @@ mutation CreateApiKey {
 }
 
 # Regenerace API klíče
-mutation RegenerateApiKey($id: UUID!) {
-  apiKeyRegenerate(id: $id) {
-    id
-    apiKey { name prefix }
-    newPlaintextKey
-    msg
+mutation RegenerateApiKey($apiKeyInput: ApiKeyRegenerateGQLModel!) {
+  apiKeyRegenerate(apiKey: $apiKeyInput) {
+    ... on ApiKeyGQLModel {
+      id
+      name
+      prefix
+      isActive
+    }
+    ... on UpdateError {
+      msg
+      code
+    }
   }
 }
 
 # Deaktivace klíče
-mutation DeactivateApiKey($id: UUID!) {
-  apiKeyDeactivate(id: $id) {
-    id
-    apiKey { isActive }
-    msg
+mutation DeactivateApiKey($apiKeyInput: ApiKeyUpdateGQLModel!) {
+  apiKeyDeactivate(apiKey: $apiKeyInput) {
+    ... on ApiKeyGQLModel {
+      id
+      isActive
+    }
+    ... on UpdateError {
+      msg
+      code
+    }
   }
 }
 ```

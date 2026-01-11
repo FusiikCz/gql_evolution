@@ -21,12 +21,19 @@ services:
 
   azure_proxy:
     build:
-      context: ./azure_proxy        # podadresář s Dockerfile a zdrojáky
-      dockerfile: Dockerfile         # volitelné, default je "Dockerfile"
+      context: .                    # root adresář, aby měl přístup k src/
+      dockerfile: ./azure_proxy/Dockerfile
     environment:
         AZURE_COGNITIVE_ACCOUNT_NAME: ${AZURE_COGNITIVE_ACCOUNT_NAME}
         AZURE_OPENAI_API_KEY: ${OPENAI_API_KEY}
         AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+        POSTGRES_HOST: postgres_gql:5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: example
+        POSTGRES_DB: data
+    depends_on:
+      postgres_gql:
+        condition: service_healthy
     ports:
       - 8798:8000
 
