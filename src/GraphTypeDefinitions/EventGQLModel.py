@@ -242,7 +242,8 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
         @relation(to: EventGQLModel, field: 'id')""",
         permission_classes=[
             OnlyForAuthentized
-        ]
+        ],
+        directives=[Relation(to="EventGQLModel")]
     )
     
     masterevent: typing.Optional["EventGQLModel"] = strawberry.field(

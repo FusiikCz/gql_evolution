@@ -6,8 +6,9 @@ import sys
 import os
 from pathlib import Path
 
-# Ensure tests run in DEMO mode (disable WhoAmIExtension)
+# Ensure tests run in DEMO mode and disable WhoAmIExtension explicitly
 os.environ.setdefault("DEMO", "True")
+os.environ.setdefault("DISABLE_WHOAMI_EXTENSION", "True")
 
 # Add project root to path
 project_root = Path(__file__).parent.parent

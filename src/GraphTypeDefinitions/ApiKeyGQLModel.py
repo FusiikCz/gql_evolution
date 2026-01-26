@@ -150,7 +150,8 @@ class ApiKeyGQLModel(BaseGQLModel):
         default=None,
         description="""User who owns this API key - foreign key to User entity.
         @relation(to: UserGQLModel, field: 'id')""",
-        permission_classes=[OnlyForAuthentized]
+        permission_classes=[OnlyForAuthentized],
+        directives=[Relation(to="UserGQLModel")]
     )
 
     # Relationships

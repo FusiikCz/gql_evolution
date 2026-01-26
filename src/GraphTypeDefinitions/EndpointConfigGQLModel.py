@@ -139,7 +139,8 @@ class EndpointConfigGQLModel(BaseGQLModel):
         default=None,
         description="""API key that owns or created this endpoint configuration - foreign key to ApiKey entity.
         @relation(to: ApiKeyGQLModel, field: 'id')""",
-        permission_classes=[OnlyForAuthentized]
+        permission_classes=[OnlyForAuthentized],
+        directives=[Relation(to="ApiKeyGQLModel")]
     )
     
     api_key: typing.Optional[ApiKeyGQLModel] = strawberry.field(

@@ -137,7 +137,8 @@ class DocumentGQLModel(BaseGQLModel):
         @relation(to: DocumentGQLModel, field: 'id')""",
         permission_classes=[
             OnlyForAuthentized
-        ]
+        ],
+        directives=[Relation(to="DocumentGQLModel")]
     )
     
     masterdocument: typing.Optional["DocumentGQLModel"] = strawberry.field(

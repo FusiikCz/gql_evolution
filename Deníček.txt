@@ -1026,3 +1026,35 @@ HOTOVO (uzavreno 26.1.2026):
 - Alerting pri prekroceni limitu (nice-to-have, Task 11)
 - Automatizovane unit testy pro DB/GraphQL/validace (nice-to-have)
 - Prepsat `Denicek.txt` do `README.md` (markdown denicek)
+
+26.1.2026 - Doplneni finalnich pozadavku Zkouska_Final
+
+**Chyba 11: chybel stromovy ciselnik pro stavy pozvanek**
+- Projev: `state_id` bylo jen UUID bez FK a bez stromoveho typu
+- Reseni: novy DB model `EventInvitationStateModel` + GQL typ `EventInvitationStateGQLModel` s `parent_id`
+- Doplnene demodata v `systemdata.json` (stavove uzly a root)
+- `state_id` je ted FK na `event_invitation_states`
+
+**Chyba 12: WhoAmIExtension nebyla aktivni ve vychozim rezimu**
+- Projev: extension se zapinala jen mimo DEMO
+- Reseni: WhoAmIExtension je aktivni standardne, vypnuti jen pres `DISABLE_WHOAMI_EXTENSION`
+- Testy maji `DISABLE_WHOAMI_EXTENSION=True` v `tests/conftest.py`
+
+**Chyba 13: chybejici Relation direktivy u cizich klicu**
+- Projev: vice FK poli nemelo `directives=[Relation(...)]`
+- Reseni: doplneny Relation direktivy pro FK v `ApiKey`, `EndpointConfig`, `Usage`, `Event`, `Document`, `DocumentFragment`, `EventInvitation` + BaseGQLModel
+
+**Chyba 14: Strawberry hlasi chybejici return anotace u mutation**
+- Projev: `MissingReturnAnnotationError` pro `event_invitation_state_insert`
+- Pricina: v `EventInvitationStateMutation` chybely explicitni return typy
+- Reseni: doplneny return anotace a importy `InsertError/UpdateError/DeleteError` v `EventInvitationStateGQLModel.py` (src + gql_evolution)
+
+**Chyba 15: SQLAlchemy dataclasses - non-default za default**
+- Projev: `TypeError: non-default argument 'name' follows default argument 'rbacobject_id'` a pote `name_en follows default argument 'name'`
+- Pricina: `BaseModel` je dataclass s default poli, nove pole v `EventInvitationStateModel` nemely default
+- Reseni: doplneny defaulty u `name`, `name_en`, `description` (src + gql_evolution); navic `BaseModel` nastaven na `kw_only=True` pro bezpecne inicializace
+
+**Chyba 16: UnresolvedFieldTypeError u input filtru**
+- Projev: `Could not resolve the type of 'parent'` v `EventInvitationStateInputFilter`
+- Pricina: Strawberry nedokazal zpracovat self‑referenci v input typu
+- Reseni: odstraneno pole `parent` z `EventInvitationStateInputFilter` (src + gql_evolution)

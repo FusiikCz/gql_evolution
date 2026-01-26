@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-01-26T16:03:05Z",
+  "command": [
+    "pytest",
+    "tests/",
+    "-v",
+    "--override-ini",
+    "addopts=-v --strict-markers --tb=line --showlocals --color=yes -ra"
+  ],
+  "returncode": 2,
+  "stdout": "\u001b[1m============================= test session starts =============================\u001b[0m\nplatform win32 -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0 -- D:\\python\\python.exe\ncachedir: .pytest_cache\nrootdir: D:\\Stefek\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, asyncio-1.3.0, cov-7.0.0\nasyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\n\u001b[1mcollecting ... \u001b[0mcollected 19 items / 1 error\n\n=================================== ERRORS ====================================\n\u001b[31m\u001b[1m__________ ERROR collecting gql_evolution/tests/test_dataloaders.py ___________\u001b[0m\n\u001b[31mImportError while importing test module 'D:\\Stefek\\gql_evolution\\tests\\test_dataloaders.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\nD:\\python\\Lib\\site-packages\\_pytest\\python.py:507: in importtestmodule\n    mod = import_path(\nD:\\python\\Lib\\site-packages\\_pytest\\pathlib.py:587: in import_path\n    importlib.import_module(module_name)\nD:\\python\\Lib\\importlib\\__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<frozen importlib._bootstrap>:1387: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1360: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:935: in _load_unlocked\n    ???\nD:\\python\\Lib\\site-packages\\_pytest\\assertion\\rewrite.py:197: in exec_module\n    exec(co, module.__dict__)\ntests\\test_dataloaders.py:9: in <module>\n    from src.Dataloaders import getUserFromInfo\nE   ImportError: cannot import name 'getUserFromInfo' from 'src.Dataloaders' (D:\\Stefek\\gql_evolution\\src\\Dataloaders\\__init__.py)\u001b[0m\n\u001b[36m\u001b[1m=========================== short test summary info ===========================\u001b[0m\n\u001b[31mERROR\u001b[0m tests\\test_dataloaders.py\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n\u001b[31m============================== \u001b[31m\u001b[1m1 error\u001b[0m\u001b[31m in 1.30s\u001b[0m\u001b[31m ===============================\u001b[0m\n",
+  "stderr": ""
+}

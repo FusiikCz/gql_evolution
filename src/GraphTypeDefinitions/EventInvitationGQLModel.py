@@ -33,13 +33,14 @@ from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProvide
 from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
 from uoishelpers.gqlpermissions.UserAbsoluteAccessControlExtension import UserAbsoluteAccessControlExtension
 
-from .BaseGQLModel import BaseGQLModel, IDType
+from .BaseGQLModel import BaseGQLModel, IDType, Relation
 from src.Utils.error_codes import get_error_code
 
 
 EventGQLModel = typing.Annotated["EventGQLModel", strawberry.lazy(".EventGQLModel")]
 EventInputFilter = typing.Annotated["EventInputFilter", strawberry.lazy(".EventGQLModel")]
 UserGQLModel = typing.Annotated["UserGQLModel", strawberry.lazy(".UserGQLModel")]
+EventInvitationStateGQLModel = typing.Annotated["EventInvitationStateGQLModel", strawberry.lazy(".EventInvitationStateGQLModel")]
 
 @createInputs2
 class EventInvitationInputFilter:
@@ -80,7 +81,8 @@ class EventInvitationGQLModel(BaseGQLModel):
         default=None,
         permission_classes=[
             OnlyForAuthentized
-        ]
+        ],
+        directives=[Relation(to="EventGQLModel")]
     )
 
     user_id: typing.Optional[IDType] = strawberry.field( 
@@ -89,15 +91,18 @@ class EventInvitationGQLModel(BaseGQLModel):
         default=None,
         permission_classes=[
             OnlyForAuthentized
-        ]
+        ],
+        directives=[Relation(to="UserGQLModel")]
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
-        description="""State assigned to the invitation""",
+        description="""State assigned to the invitation - foreign key to EventInvitationState.
+        @relation(to: EventInvitationStateGQLModel, field: 'id')""",
         default=None,
         permission_classes=[
             OnlyForAuthentized  
-        ]
+        ],
+        directives=[Relation(to="EventInvitationStateGQLModel")]
     )
 
     event: typing.Optional[EventGQLModel] = strawberry.field(
@@ -114,6 +119,14 @@ class EventInvitationGQLModel(BaseGQLModel):
             OnlyForAuthentized
         ],
         resolver=ScalarResolver[UserGQLModel](fkey_field_name="user_id")
+    )
+
+    state: typing.Optional[EventInvitationStateGQLModel] = strawberry.field(
+        description="""Invitation state""",
+        permission_classes=[
+            OnlyForAuthentized
+        ],
+        resolver=ScalarResolver[EventInvitationStateGQLModel](fkey_field_name="state_id")
     )
 
 @strawberry.type(description="EventInvitation queries for fetching invitations by id or by filter")
@@ -155,7 +168,7 @@ class EventInvitationInsertGQLModel(InputModelMixin):
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
-        description="""Invitation state identifier (hardcoded UUID values, not a foreign key).
+        description="""Invitation state identifier - foreign key to EventInvitationState.
         Represents invitation kind and presence type (invited, accepted, declined, etc.).""",
         default=None
     )
@@ -178,7 +191,7 @@ class EventInvitationUpdateGQLModel:
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
-        description="""Invitation state identifier (hardcoded UUID values, not a foreign key).
+        description="""Invitation state identifier - foreign key to EventInvitationState.
         Represents invitation kind and presence type (invited, accepted, declined, etc.).""",
         default=None
     )

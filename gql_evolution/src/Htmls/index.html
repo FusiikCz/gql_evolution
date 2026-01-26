@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stefek - Visual Tools</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container py-4">
+    <h1 class="mb-3">Stefek - Visual Tools</h1>
+    <p class="text-muted">Open the tools below. All pages use the same GraphQL endpoint: <code>/gql</code>.</p>
+
+    <div class="list-group mb-4">
+      <a class="list-group-item list-group-item-action" href="/voyager" target="_blank">GraphQL Schema - Voyager</a>
+      <a class="list-group-item list-group-item-action" href="/doc" target="_blank">GraphQL Schema - Live Schema</a>
+      <a class="list-group-item list-group-item-action" href="/ui" target="_blank">Live Queries UI</a>
+      <a class="list-group-item list-group-item-action" href="/endpoint-config" target="_blank">Endpoint Config CRUD UI</a>
+      <a class="list-group-item list-group-item-action" href="/test" target="_blank">GraphQL Page Field Tester</a>
+      <a class="list-group-item list-group-item-action" href="/test-report" target="_blank">Test Report (HTML)</a>
+      <a class="list-group-item list-group-item-action" href="/test-report.json" target="_blank">Test Report (JSON)</a>
+      <a class="list-group-item list-group-item-action" href="/dashboard" target="_blank">Analytics Dashboard</a>
+    </div>
+
+    <div class="alert alert-secondary">
+      <div><strong>Tip:</strong> If you need auth for GraphQL, start the app with <code>DEMO=True</code>.</div>
+    </div>
+  </div>
+</body>
+</html>

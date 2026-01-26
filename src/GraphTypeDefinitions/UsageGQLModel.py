@@ -198,7 +198,8 @@ class UsageGQLModel(BaseGQLModel):
         default=None,
         description="""API Key that was used for this request - foreign key to ApiKey entity.
         @relation(to: ApiKeyGQLModel, field: 'id')""",
-        permission_classes=[OnlyForAuthentized]
+        permission_classes=[OnlyForAuthentized],
+        directives=[Relation(to="ApiKeyGQLModel")]
     )
 
     # Relationship

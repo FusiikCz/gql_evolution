@@ -1,0 +1,31 @@
+# To ensure app dependencies are ported from your virtual environment/host machine into your container, run 'pip freeze > requirements.txt' in the terminal to overwrite this file
+fastapi[all]
+uvicorn[standard]
+gunicorn
+
+strawberry-graphql[fastapi] #moje navíc
+git+https://github.com/hrbolek/uoishelpers.git
+
+asyncpg
+sqlalchemy-cockroachdb
+
+aiohttp
+requests
+
+sqlalchemy
+sqlalchemy_utils
+pgvector
+
+pydantic
+starlette
+strawberry-graphql
+aiodataloader
+pyjwt[crypto]
+
+nicegui
+fastmcp
+openai
+
+pyinstrument
+prometheus_client
+https://github.com/hrbolek/uoishelpers/archive/refs/heads/main.zip

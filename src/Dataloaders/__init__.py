@@ -5,6 +5,7 @@ from src.DBDefinitions import BaseModel
 from src.DBDefinitions import (
     EventModel,
     EventInvitationModel,
+    EventInvitationStateModel,
     ApiKeyModel,
     UsageModel,
     UserModel,
@@ -26,6 +27,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
 
     EventModel: IDLoader[src.DBDefinitions.EventModel] = None
     EventInvitationModel: IDLoader[src.DBDefinitions.EventInvitationModel] = None
+    EventInvitationStateModel: IDLoader[src.DBDefinitions.EventInvitationStateModel] = None
     ApiKeyModel: IDLoader[src.DBDefinitions.ApiKeyModel] = None
     UsageModel: IDLoader[src.DBDefinitions.UsageModel] = None
     UserModel: IDLoader[src.DBDefinitions.UserModel] = None
@@ -39,6 +41,7 @@ class LoaderMap(LoaderMapBase[BaseModel]):
 
         self.EventModel = self.get(EventModel)
         self.EventInvitationModel = self.get(EventInvitationModel)
+        self.EventInvitationStateModel = self.get(EventInvitationStateModel)
         self.ApiKeyModel = self.get(ApiKeyModel)
         self.UsageModel = self.get(UsageModel)
         self.UserModel = self.get(UserModel)

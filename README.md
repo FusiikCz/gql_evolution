@@ -80,6 +80,32 @@ Check `utils.Dataloaders`.
 
 ---
 
+## Docker & Docker Compose
+
+### Quick start (docker-compose)
+1. Create `.env` (see `environment.txt` for defaults).
+2. Run:
+   ```bash
+   docker-compose up --build
+   ```
+3. Open:
+   - `http://127.0.0.1:8000/docs`
+   - `http://127.0.0.1:8000/gql`
+   - `http://127.0.0.1:8000/graphiql`
+
+### Environment variables
+- `DEMO`, `DEMODATA` – demo mode and demo data load
+- `POSTGRES_HOST`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `DISABLE_WHOAMI_EXTENSION` – set to `True` only for tests/local debugging
+
+### Docker Hub publishing (latest tag)
+```bash
+docker build -t <dockerhub_user>/<image_name>:latest .
+docker push <dockerhub_user>/<image_name>:latest
+```
+
+---
+
 ## Deníček
 
 Zde se budou zapisovat chyby a errory který nejdou okamžitě obejít a na které okamžitě nepřijdeme.

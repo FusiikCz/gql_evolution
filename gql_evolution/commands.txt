@@ -1,0 +1,87 @@
+GQL Evolution - Quick Commands
+================================
+
+START APPLICATION (FULL SETUP - RECOMMENDED):
+-----------------------------------------------
+1. cd gql_evolution
+2. docker-compose up -d
+3. Set environment variables:
+   $env:DEMO="true"
+   $env:GQLUG_ENDPOINT_URL="http://localhost:8000"
+   $env:POSTGRES_HOST="localhost:5434"
+   $env:OPENAI_API_KEY="dummy-key"
+   $env:AZURE_COGNITIVE_ACCOUNT_NAME="dummy-account"
+   $env:AZURE_CHAT_DEPLOYMENT_NAME="dummy-deployment"
+   # Optional: pricing map for proxy cost_usd (USD per 1k tokens)
+   # Example:
+   # $env:OPENAI_MODEL_PRICING_JSON='{"gpt-4o-mini":{"prompt_per_1k":0.00015,"completion_per_1k":0.0006}}'
+4. Start uvicorn:
+   uvicorn main:app --reload
+
+
+CHECK STATUS:
+-------------
+docker ps
+netstat -an | findstr :8000
+
+RESTART SERVER (after code changes):
+-------------------------------------
+1. Stop uvicorn: Ctrl+C
+2. Start uvicorn: uvicorn main:app --reload
+   (IMPORTANT: Restart is needed after DBDefinitions changes due to singleCall cache)
+
+ENDPOINTS (WORKING):
+--------------------
+✅ Backend API Docs (OpenAPI/Swagger): htimage.pngtp://127.0.0.1:8000/docs
+✅ GraphQL Playground: http://127.0.0.1:8000/gql    http://localhost:8000/gql
+✅ GraphQL Voyager: http://127.0.0.1:8000/voyager
+✅ NiceGUI (Admin UI): http://127.0.0.1:8000/nicegui/
+✅ Frontend (ChatGPT): http://localhost:3000
+✅ pgAdmin: http://localhost:31800
+✅ Azure Proxy: http://localhost:8798
+✅ Test Endpoint: http://127.0.0.1:8000/test
+✅ MCP (Model Context Protocol): http://127.0.0.1:8000/mcp_no_sse
+
+
+http://localhost:8000/analytics
+http://localhost:8000/dashboard
+http://127.0.0.1:8000/diagnostics
+
+MUTATION TESTING:
+-----------------
+✅ apiKeyInsert FUNGUJE - vytváří klíče s auto-generated prefix a key_hash
+✅ apiKeyUpdate FUNGUJE - vyžaduje všechny povinné pole v inputu
+⚠️ Poznámka: DEMO test user se vkládá do GraphQL contextu jen při $env:DEMO="true" (produkce bezpečně bez bypassu).
+
+PŘIPRAVENÉ MUTATIONY:
+- ✅ apiKeyInsert (Create) - kompletně funkční, vrací plaintext key v ApiKeyInsertResponse
+- ✅ apiKeyUpdate (Update) - funkční (povinné: id, lastchange, isActive; volitelná ostatní)
+- ✅ apiKeyDelete (Delete) - implementováno (povinné: id, lastchange; vyžaduje role: administrátor)
+- ✅ apiKeyDeactivate (Soft Delete) - implementováno (nastaví isActive=false; povinné: id, lastchange)
+- ✅ apiKeyRegenerate (Regenerate) - implementováno (nový prefix+hash; povinné: id, lastchange)
+- ✅ deactivate_expired_api_keys - bulk operace pro deaktivaci expirovaných klíčů
+
+UPGRADY (2025-01-07):
+- ✅ apiKeyInsert nyní vrací plaintext key v ApiKeyInsertResponse type
+- ✅ EventInvitation insert má validaci proti duplikátům
+
+For testing, use http://localhost:8000/gql Playground
+See DEMO_MUTATIONS.md and QUICK_TEST.gql for working examples
+
+DIFFERENCES BETWEEN SETUPS:
+----------------------------
+FULL SETUP (docker-compose):
+✅ PostgreSQL with pgvector extension (for AI)
+✅ pgAdmin web interface
+✅ ChatGPT frontend
+✅ Azure proxy
+✅ Port 5434 (external), 5432 (internal)
+
+
+TROUBLESHOOTING:
+----------------
+- If Docker fails: Start Docker Desktop first
+- If database error: Check docker ps (postgres should be running)
+- If port 8000 busy: netstat -an | findstr :8000
+- For simple setup: Use POSTGRES_HOST="localhost:5432"
+- For full setup: Use POSTGRES_HOST="localhost:5434"
