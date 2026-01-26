@@ -992,3 +992,37 @@ QUICK_TEST.gql je v pořádku - varování o chybějících variables jsou norm�
 **Soubory změněny:**
 - `QUICK_TEST.gql` - přidány komentáře a variables examples pro queries/mutations vyžadující variables
 - `TASK_11_PLAN.md` - opraveny GraphQL příklady (CreateApiKey mutation selection set, odstraněn ApiKeyRegenerateResult s newPlaintextKey)
+
+26.1.2026 - Finalni kontrola a opravy pro Zkouska_Final + Task 11
+
+**Chyba 1: json neni definovano v gql_evolution/main.py**
+- Projev: warning "json is not defined" na route `/test-report.json`
+- Pricina: chybel import `json`
+- Reseni: pridany `import json` v `gql_evolution/main.py`
+
+**Chyba 2: _api_post vraci dict, ale load_usage ceka list**
+- Projev: pri prazdne odpovedi z `/management/usage` GUI padalo na `r["bucket"]`
+- Pricina: `_api_post` vracel `{"ok": True}` pri prazdnem body
+- Reseni: `_api_post` podporuje `empty_value`, `load_usage` pouziva `[]` a resi empty chart
+
+**Chyba 3: chybove kody bez UUID**
+- Projev: pozadavek na UUID chybove kody pro resolvery CUD
+- Reseni: `src/Utils/error_codes.py` generuje deterministicke UUID a resolvery pouzivaji `get_error_code()`
+
+**Chyba 4: chybne nebo prazdne popisy v GQL typech**
+- Projev: nektere typy mely prazdny `description` (AI nema kontext)
+- Reseni: doplneny popisy v `EventGQLModel`, `EventInvitationGQLModel`, `TimeUnit`
+
+**Chyba 5: chybi public/ HTML sada**
+- Projev: pozadavek na public/ s GraphiQL, Voyager, tests, liveschema, livedata
+- Reseni: vytvoren `public/` s kompletnimi HTML soubory + `graphiql.html`
+- Server preferuje `public/` a fallbackuje do `src/Htmls`
+
+**Chyba 6: Python 3.11+ pozadavek**
+- Projev: Docker image bez 3.11
+- Reseni: Dockerfile, azure_proxy/Dockerfile, proxy/Dockerfile prepnuty na `python:3.11-slim`
+
+HOTOVO (uzavreno 26.1.2026):
+- Alerting pri prekroceni limitu (nice-to-have, Task 11)
+- Automatizovane unit testy pro DB/GraphQL/validace (nice-to-have)
+- Prepsat `Denicek.txt` do `README.md` (markdown denicek)

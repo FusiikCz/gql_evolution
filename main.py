@@ -265,25 +265,59 @@ schema.extensions.append(
 
 app.include_router(graphql_app, prefix="/gql")
 
+def _html_path(filename: str) -> str:
+    public_path = os.path.realpath(os.path.join("public", filename))
+    if os.path.exists(public_path):
+        return public_path
+    return os.path.realpath(os.path.join("src", "Htmls", filename))
+
+@app.get("/", response_class=FileResponse)
+async def index():
+    realpath = _html_path("index.html")
+    return realpath
+
+@app.get("/graphiql", response_class=FileResponse)
+async def graphiql_ui():
+    realpath = _html_path("graphiql.html")
+    return realpath
+
 @app.get("/voyager", response_class=FileResponse)
 async def graphiql():
-    realpath = os.path.realpath("./src/Htmls/voyager.html")
+    realpath = _html_path("voyager.html")
     return realpath
 
 @app.get("/doc", response_class=FileResponse)
 async def graphiql():
-    realpath = os.path.realpath("./src/Htmls/liveschema.html")
+    realpath = _html_path("liveschema.html")
     return realpath
 
 @app.get("/ui", response_class=FileResponse)
 async def graphiql():
-    realpath = os.path.realpath("./src/Htmls/livedata.html")
+    realpath = _html_path("livedata.html")
     return realpath
 
 @app.get("/test", response_class=FileResponse)
 async def graphiql():
-    realpath = os.path.realpath("./src/Htmls/tests.html")
+    realpath = _html_path("tests.html")
     return realpath
+
+@app.get("/endpoint-config", response_class=FileResponse)
+async def endpoint_config_ui():
+    realpath = _html_path("endpoint_config.html")
+    return realpath
+
+@app.get("/test-report", response_class=FileResponse)
+async def test_report_ui():
+    realpath = _html_path("test_report.html")
+    return realpath
+
+@app.get("/test-report.json")
+async def test_report_json():
+    report_path = os.path.realpath("./tests/report.json")
+    if not os.path.exists(report_path):
+        return JSONResponse({"status": "missing", "message": "Run tests to generate report.json"}, status_code=404)
+    with open(report_path, "r", encoding="utf-8") as handle:
+        return JSONResponse(json.load(handle))
 
 async def _collect_analytics_payload(async_session_maker):
     """Shared analytics aggregation used by multiple endpoints."""
@@ -426,7 +460,7 @@ async def diagnostics(
 
 @app.get("/dashboard", response_class=FileResponse)
 async def analytics_dashboard():
-    realpath = os.path.realpath("./src/Htmls/analytics.html")
+    realpath = _html_path("analytics.html")
     return realpath
 
 import prometheus_client

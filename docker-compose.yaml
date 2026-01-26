@@ -21,19 +21,12 @@ services:
 
   azure_proxy:
     build:
-      context: .                    # root adresář, aby měl přístup k src/
-      dockerfile: ./azure_proxy/Dockerfile
+      context: .                    # potrebuje pristup k /src
+      dockerfile: azure_proxy/Dockerfile
     environment:
         AZURE_COGNITIVE_ACCOUNT_NAME: ${AZURE_COGNITIVE_ACCOUNT_NAME}
         AZURE_OPENAI_API_KEY: ${OPENAI_API_KEY}
         AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
-        POSTGRES_HOST: postgres_gql:5432
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: example
-        POSTGRES_DB: data
-    depends_on:
-      postgres_gql:
-        condition: service_healthy
     ports:
       - 8798:8000
 
@@ -50,9 +43,9 @@ services:
       timeout: 10s
       retries: 5
     restart: on-failure:3 # nedojde k restartu pokud je kontejner "unhealthy", maximalne 3 pokusy
-    # volumes:
+    volumes:
       # - dbdata:/var/lib/postgresql/data
-      # - ./pgvector:/docker-entrypoint-initdb.d    
+      - ./pgvector:/docker-entrypoint-initdb.d    
     ports:
       - 5434:5432
 

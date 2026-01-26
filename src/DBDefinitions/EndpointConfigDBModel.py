@@ -51,7 +51,7 @@ class EndpointConfigModel(BaseModel):
     
     # Model mapping configuration
     model_mapping: Mapped[typing.Optional[dict]] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=True,
         default=None,
         comment="JSON mapping of OpenAI model names to Azure deployments: {'gpt-4o': 'gpt4o-prod', ...}"

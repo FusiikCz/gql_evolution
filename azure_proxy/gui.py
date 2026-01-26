@@ -49,10 +49,10 @@ def init_gui(fastapi_app: FastAPI) -> None:
         r.raise_for_status()
         return r.json()
 
-    async def _api_post(path: str, json_body: dict | None = None):
+    async def _api_post(path: str, json_body: dict | None = None, empty_value=None):
         r = await api.post(path, headers=_auth_header(), json=json_body or {})
         r.raise_for_status()
-        return r.json() if r.content else {"ok": True}
+        return r.json() if r.content else empty_value
 
     # --------- OIDC routy ---------
     @fastapi_app.get("/auth/login")
@@ -175,7 +175,13 @@ def init_gui(fastapi_app: FastAPI) -> None:
                     ui.notify("Select a key to load usage", type="warning")
                     return
                 payload = {"key_id": sel["id"], "bucket": "day"}
-                rows = await _api_post("/management/usage", json_body=payload)
+                rows = await _api_post("/management/usage", json_body=payload, empty_value=[])
+                if not rows:
+                    chart.options["xAxis"]["data"] = []
+                    chart.options["series"][0]["data"] = []
+                    chart.options["series"][1]["data"] = []
+                    chart.update()
+                    return
                 xs = [r["bucket"] for r in rows]
                 reqs = [r["requests"] for r in rows]
                 toks = [r.get("total_tokens") or 0 for r in rows]

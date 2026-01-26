@@ -81,6 +81,94 @@
             "rbacobject_id": "72f0f5ee-10b1-4e2d-b873-b60201f94de8"
         }
     ],
+    "events_evolution": [
+        {
+            "id": "5194663f-11aa-4775-91ed-5f3d79269fed",
+            "created": "2024-10-10T08:00:00.000000",
+            "lastchange": "2024-10-10T08:00:00.000000",
+            "__typename": "EventGQLModel",
+            "name": "Parent Event",
+            "name_en": "Parent Event",
+            "description": "Parent event for tests",
+            "startdate": "2024-10-10T08:00:00.000000",
+            "enddate": "2024-10-10T10:00:00.000000",
+            "masterevent_id": null,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "08ff1c5d-9891-41f6-a824-fc6272adc189",
+            "created": "2024-10-10T08:30:00.000000",
+            "lastchange": "2024-10-10T08:30:00.000000",
+            "__typename": "EventGQLModel",
+            "name": "Child Event A",
+            "name_en": "Child Event A",
+            "description": "Child event for master event test",
+            "startdate": "2024-10-10T08:30:00.000000",
+            "enddate": "2024-10-10T09:30:00.000000",
+            "masterevent_id": "5194663f-11aa-4775-91ed-5f3d79269fed",
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "45b2df80-ae0f-11ed-9bd8-0242ac110002",
+            "created": "2024-10-10T09:00:00.000000",
+            "lastchange": "2024-10-10T09:00:00.000000",
+            "__typename": "EventGQLModel",
+            "name": "Integration Event",
+            "name_en": "Integration Event",
+            "description": "Event used by client tests",
+            "startdate": "2024-10-10T09:00:00.000000",
+            "enddate": "2024-10-10T10:00:00.000000",
+            "masterevent_id": "5194663f-11aa-4775-91ed-5f3d79269fed",
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "89d1e724-ae0f-11ed-9bd8-0242ac110002",
+            "created": "2024-10-10T09:15:00.000000",
+            "lastchange": "2024-10-10T09:15:00.000000",
+            "__typename": "EventGQLModel",
+            "name": "Sub Event B",
+            "name_en": "Sub Event B",
+            "description": "Second child event for tests",
+            "startdate": "2024-10-10T09:15:00.000000",
+            "enddate": "2024-10-10T09:45:00.000000",
+            "masterevent_id": "5194663f-11aa-4775-91ed-5f3d79269fed",
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        }
+    ],
+    "event_invitations_evolution": [
+        {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "created": "2024-10-10T09:05:00.000000",
+            "lastchange": "2024-10-10T09:05:00.000000",
+            "__typename": "EventInvitationGQLModel",
+            "event_id": "45b2df80-ae0f-11ed-9bd8-0242ac110002",
+            "user_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "state_id": "01b96c1d-8389-4267-a859-d8116e1c32f3",
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "22222222-2222-2222-2222-222222222222",
+            "created": "2024-10-10T09:10:00.000000",
+            "lastchange": "2024-10-10T09:10:00.000000",
+            "__typename": "EventInvitationGQLModel",
+            "event_id": "5194663f-11aa-4775-91ed-5f3d79269fed",
+            "user_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
+            "state_id": "01b96c1d-8389-4267-a859-d8116e1c32f3",
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        }
+    ],
     "document_evolution": [
         {
             "id": "d4e3a7c2-5f68-4cbe-9e03-3e1b6e7b2a10",

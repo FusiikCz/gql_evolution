@@ -5,6 +5,7 @@ import re
 from strawberry.types import Info
 
 from .BaseGQLModel import BaseGQLModel, IDType
+from src.Utils.error_codes import get_error_code
 from uoishelpers.resolvers import (
     getLoadersFromInfo, 
     createInputs2,
@@ -440,7 +441,7 @@ class UserMutation:
             return InsertError(
                 msg=f"Invalid email format: {user.email}",
                 _input=user,
-                code="INVALID_EMAIL"
+                code=get_error_code("INVALID_EMAIL")
             )
         
         # Check for duplicate email if provided
@@ -451,7 +452,7 @@ class UserMutation:
                     return InsertError(
                         msg=f"Email already exists: {user.email}",
                         _input=user,
-                        code="EMAIL_ALREADY_EXISTS"
+                        code=get_error_code("EMAIL_ALREADY_EXISTS")
                     )
         
         return await Insert[UserGQLModel].DoItSafeWay(info=info, entity=user)
@@ -494,7 +495,7 @@ class UserMutation:
         if user.email and not validate_email(user.email):
             return UpdateError(
                 msg=f"Invalid email format: {user.email}",
-                code="INVALID_EMAIL"
+                code=get_error_code("INVALID_EMAIL")
             )
         
         # Check for duplicate email if provided (excluding current user)
@@ -504,7 +505,7 @@ class UserMutation:
                 if await check_duplicate_email(session, user.email, exclude_user_id=user.id):
                     return UpdateError(
                         msg=f"Email already exists: {user.email}",
-                        code="EMAIL_ALREADY_EXISTS"
+                        code=get_error_code("EMAIL_ALREADY_EXISTS")
                     )
         
         result = await Update[UserGQLModel].DoItSafeWay(info=info, entity=user)

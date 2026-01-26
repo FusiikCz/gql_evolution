@@ -6,7 +6,7 @@ from .shared import (
     prepare_in_memory_sqllite
     )
 
-from utils.Dataloaders import getUserFromInfo
+from src.Dataloaders import getUserFromInfo
 
 @pytest.mark.asyncio
 async def test_get_user():

@@ -1,4 +1,3 @@
-import asyncio
 import dataclasses
 import datetime
 import typing
@@ -25,12 +24,12 @@ from uoishelpers.resolvers import (
 )
 from uoishelpers.gqlpermissions.LoadDataExtension import LoadDataExtension
 from uoishelpers.gqlpermissions.RbacProviderExtension import RbacProviderExtension
-from uoishelpers.gqlpermissions.RbacInsertProviderExtension import RbacInsertProviderExtension
 from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProviderExtension
 from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
 
 from .BaseGQLModel import BaseGQLModel, IDType, Relation
 from src.Utils.api_key_utils import generate_api_key
+from src.Utils.error_codes import get_error_code
 
 # Forward references pro lazy loading
 UsageGQLModel = typing.Annotated["UsageGQLModel", strawberry.lazy(".UsageGQLModel")]
@@ -213,6 +212,42 @@ class ApiKeyGQLModel(BaseGQLModel):
             return float(total or 0.0)
 
     @strawberry.field(
+        description="""True when monthly token usage exceeds max_tokens_per_month""",
+        permission_classes=[OnlyForAuthentized]
+    )
+    async def is_over_token_limit(self, info: strawberry.types.Info) -> bool:
+        if self.max_tokens_per_month is None:
+            return False
+        total = await self.total_usage_this_month(info)
+        return total > self.max_tokens_per_month
+
+    @strawberry.field(
+        description="""True when monthly cost exceeds max_cost_per_month""",
+        permission_classes=[OnlyForAuthentized]
+    )
+    async def is_over_cost_limit(self, info: strawberry.types.Info) -> bool:
+        if self.max_cost_per_month is None:
+            return False
+        total = await self.total_cost_this_month(info)
+        return total > self.max_cost_per_month
+
+    @strawberry.field(
+        description="""List of alert codes when API key limits are exceeded""",
+        permission_classes=[OnlyForAuthentized]
+    )
+    async def limit_alerts(self, info: strawberry.types.Info) -> typing.List[str]:
+        alerts: list[str] = []
+        if self.max_tokens_per_month is not None:
+            total_tokens = await self.total_usage_this_month(info)
+            if total_tokens > self.max_tokens_per_month:
+                alerts.append("TOKENS_EXCEEDED")
+        if self.max_cost_per_month is not None:
+            total_cost = await self.total_cost_this_month(info)
+            if total_cost > self.max_cost_per_month:
+                alerts.append("COST_EXCEEDED")
+        return alerts
+
+    @strawberry.field(
         description="""Whether the API key is expired""",
         permission_classes=[OnlyForAuthentized]
     )
@@ -283,9 +318,10 @@ class ApiKeyQuery:
         # Get database session
         async_session_maker = info.context["asyncSessionMaker"]
         async with async_session_maker() as session:
-            # Query API keys for current user
+            # Query API keys for current user (only active keys)
             stmt = select(ApiKeyModel).where(
-                ApiKeyModel.user_id == user_id
+                ApiKeyModel.user_id == user_id,
+                ApiKeyModel.is_active == True
             ).order_by(ApiKeyModel.created.desc())
             
             result = await session.execute(stmt)
@@ -356,6 +392,44 @@ class ApiKeyQuery:
             
             # Extract ApiKeyModel from rows
             return [ApiKeyGQLModel.from_dataclass(row[0]) for row in rows]
+
+    @strawberry.field(
+        description="""Get API keys that exceeded monthly limits"""
+    )
+    async def api_key_alerts(
+        self,
+        info: strawberry.types.Info,
+        limit: int = 50
+    ) -> typing.List[ApiKeyGQLModel]:
+        from sqlalchemy import select, func, or_
+        from src.DBDefinitions import ApiKeyModel, UsageModel
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        total_tokens = func.coalesce(func.sum(UsageModel.total_tokens), 0)
+        total_cost = func.coalesce(func.sum(UsageModel.cost_usd), 0.0)
+
+        async_session_maker = info.context["asyncSessionMaker"]
+        async with async_session_maker() as session:
+            stmt = select(ApiKeyModel).outerjoin(
+                UsageModel,
+                (UsageModel.api_key_id == ApiKeyModel.id) & (UsageModel.ts >= start_of_month)
+            ).group_by(
+                ApiKeyModel.id
+            ).having(
+                or_(
+                    (ApiKeyModel.max_tokens_per_month.isnot(None)) & (total_tokens > ApiKeyModel.max_tokens_per_month),
+                    (ApiKeyModel.max_cost_per_month.isnot(None)) & (total_cost > ApiKeyModel.max_cost_per_month)
+                )
+            ).order_by(
+                total_cost.desc(),
+                total_tokens.desc()
+            ).limit(limit)
+
+            result = await session.execute(stmt)
+            db_rows = result.scalars().all()
+            return [ApiKeyGQLModel.from_dataclass(row) for row in db_rows]
 
 # Input types for mutations
 from uoishelpers.resolvers import InputModelMixin
@@ -518,18 +592,15 @@ class ApiKeyMutation:
             OnlyForAuthentized
         ],
         extensions=[
-            UserRoleProviderExtension[InsertError, ApiKeyGQLModel](),
-            RbacProviderExtension[InsertError, ApiKeyGQLModel](),
-            LoadDataExtension[InsertError, ApiKeyGQLModel]()
+            # UserRoleProviderExtension není potřeba pro insert - user_roles jsou dostupné z kontextu
+            # LoadDataExtension není potřeba pro insert - id se generuje automaticky
+            # RbacInsertProviderExtension není potřeba pro insert - nový záznam ještě neexistuje, takže RBAC kontrola není nutná
         ]
     )
     async def api_key_insert(
         self,
         info: strawberry.types.Info,
         api_key: ApiKeyInsertGQLModel,
-        db_row: typing.Any,
-        rbacobject_id: IDType,
-        user_roles: typing.List[dict],
     ) -> typing.Union[ApiKeyInsertResponse, InsertError[ApiKeyGQLModel]]:
         """
         Insert a new API key with validation.
@@ -548,13 +619,21 @@ class ApiKeyMutation:
         # Get current user
         user = getUserFromInfo(info)
         if not user:
-            return InsertError(msg="User not found in context", _input=api_key, code="USER_NOT_FOUND")
+            return InsertError(msg="User not found in context", _input=api_key, code=get_error_code("USER_NOT_FOUND"))
         
         # Check if user has id
         if not hasattr(user, 'id') and 'id' not in user:
-            return InsertError(msg="User missing ID attribute", _input=api_key, code="USER_INVALID")
+            return InsertError(msg="User missing ID attribute", _input=api_key, code=get_error_code("USER_INVALID"))
         
         user_id = user.id if hasattr(user, 'id') else user['id']
+        
+        # Generate ID early if not provided (needed for rbacobject_id)
+        if api_key.id is None:
+            api_key.id = uuid.uuid4()
+        
+        # Set rbacobject_id to the same as id for new API key
+        # This must be set early because extensions may check it
+        api_key.rbacobject_id = api_key.id
         
         # Validate rate limits if provided
         if api_key.rate_limit_per_minute is not None and api_key.rate_limit_per_hour is not None:
@@ -562,7 +641,7 @@ class ApiKeyMutation:
                 return InsertError(
                     msg="rate_limit_per_minute cannot be greater than rate_limit_per_hour",
                     _input=api_key,
-                    code="INVALID_RATE_LIMITS"
+                    code=get_error_code("INVALID_RATE_LIMITS")
                 )
         
         if api_key.rate_limit_per_hour is not None and api_key.rate_limit_per_day is not None:
@@ -570,7 +649,7 @@ class ApiKeyMutation:
                 return InsertError(
                     msg="rate_limit_per_hour cannot be greater than rate_limit_per_day",
                     _input=api_key,
-                    code="INVALID_RATE_LIMITS"
+                    code=get_error_code("INVALID_RATE_LIMITS")
                 )
         
         # Validate all rate limits are non-negative
@@ -578,19 +657,19 @@ class ApiKeyMutation:
             return InsertError(
                 msg="rate_limit_per_minute must be non-negative",
                 _input=api_key,
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         if api_key.rate_limit_per_hour is not None and api_key.rate_limit_per_hour < 0:
             return InsertError(
                 msg="rate_limit_per_hour must be non-negative",
                 _input=api_key,
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         if api_key.rate_limit_per_day is not None and api_key.rate_limit_per_day < 0:
             return InsertError(
                 msg="rate_limit_per_day must be non-negative",
                 _input=api_key,
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         
         # Validate expiration date is in the future
@@ -600,7 +679,7 @@ class ApiKeyMutation:
                 return InsertError(
                     msg="expires_at must be in the future",
                     _input=api_key,
-                    code="INVALID_EXPIRATION"
+                    code=get_error_code("INVALID_EXPIRATION")
                 )
         
         # Check user's max_api_keys limit
@@ -624,7 +703,7 @@ class ApiKeyMutation:
                     return InsertError(
                         msg=f"User has reached the maximum number of API keys ({db_user.max_api_keys})",
                         _input=api_key,
-                        code="MAX_KEYS_EXCEEDED"
+                        code=get_error_code("MAX_KEYS_EXCEEDED")
                     )
         
         # Generate API key before insert
@@ -634,9 +713,7 @@ class ApiKeyMutation:
         api_key.is_active = True  # Default to active
         api_key.user_id = user_id  # Set user_id from current user
         
-        # Generate ID if not provided
-        if api_key.id is None:
-            api_key.id = uuid.uuid4()
+        # ID and rbacobject_id are already set earlier in the function
         
         result = await Insert[ApiKeyGQLModel].DoItSafeWay(info=info, entity=api_key)
         
@@ -689,31 +766,31 @@ class ApiKeyMutation:
             if api_key.rate_limit_per_minute > api_key.rate_limit_per_hour:
                 return UpdateError(
                     msg="rate_limit_per_minute cannot be greater than rate_limit_per_hour",
-                    code="INVALID_RATE_LIMITS"
+                    code=get_error_code("INVALID_RATE_LIMITS")
                 )
         
         if api_key.rate_limit_per_hour is not None and api_key.rate_limit_per_day is not None:
             if api_key.rate_limit_per_hour > api_key.rate_limit_per_day:
                 return UpdateError(
                     msg="rate_limit_per_hour cannot be greater than rate_limit_per_day",
-                    code="INVALID_RATE_LIMITS"
+                    code=get_error_code("INVALID_RATE_LIMITS")
                 )
         
         # Validate all rate limits are non-negative
         if api_key.rate_limit_per_minute is not None and api_key.rate_limit_per_minute < 0:
             return UpdateError(
                 msg="rate_limit_per_minute must be non-negative",
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         if api_key.rate_limit_per_hour is not None and api_key.rate_limit_per_hour < 0:
             return UpdateError(
                 msg="rate_limit_per_hour must be non-negative",
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         if api_key.rate_limit_per_day is not None and api_key.rate_limit_per_day < 0:
             return UpdateError(
                 msg="rate_limit_per_day must be non-negative",
-                code="INVALID_RATE_LIMITS"
+                code=get_error_code("INVALID_RATE_LIMITS")
             )
         
         # Validate expiration date is in the future
@@ -722,7 +799,7 @@ class ApiKeyMutation:
             if api_key.expires_at <= now:
                 return UpdateError(
                     msg="expires_at must be in the future",
-                    code="INVALID_EXPIRATION"
+                    code=get_error_code("INVALID_EXPIRATION")
                 )
         
         return await Update[ApiKeyGQLModel].DoItSafeWay(info=info, entity=api_key)
@@ -757,18 +834,14 @@ class ApiKeyMutation:
             OnlyForAuthentized
         ],
         extensions=[
-            UserRoleProviderExtension[UpdateError, ApiKeyGQLModel](),
-            RbacProviderExtension[UpdateError, ApiKeyGQLModel](),
-            LoadDataExtension[UpdateError, ApiKeyGQLModel]()
+            # UserRoleProviderExtension a RbacProviderExtension nejsou potřeba - Update.DoItSafeWay načte data sám
+            # LoadDataExtension není potřeba - Update.DoItSafeWay načte data sám
         ]
     )
     async def api_key_deactivate(
         self,
         info: strawberry.types.Info,
         api_key: ApiKeyUpdateGQLModel,
-        db_row: typing.Any,
-        rbacobject_id: IDType,
-        user_roles: typing.List[dict],
     ) -> typing.Union[ApiKeyGQLModel, UpdateError[ApiKeyGQLModel]]:
         """
         Deactivate an API Key (soft delete).
@@ -782,9 +855,51 @@ class ApiKeyMutation:
         Returns:
             Updated ApiKeyGQLModel or UpdateError
         """
-        # Set is_active to False
-        api_key.is_active = False
-        return await Update[ApiKeyGQLModel].DoItSafeWay(info=info, entity=api_key)
+        from src.DBDefinitions import ApiKeyModel
+        from sqlalchemy import select
+        import datetime
+        
+        # Get session from context
+        async_session_maker = info.context["asyncSessionMaker"]
+        async with async_session_maker() as session:
+            # Load the existing key
+            stmt = select(ApiKeyModel).where(ApiKeyModel.id == api_key.id)
+            result = await session.execute(stmt)
+            db_key = result.scalar_one_or_none()
+            
+            if not db_key:
+                return UpdateError(
+                    msg="API key not found",
+                    code=get_error_code("KEY_NOT_FOUND")
+                )
+            
+            # Check optimistic locking
+            if db_key.lastchange != api_key.lastchange:
+                return UpdateError(
+                    msg="Key was modified by another user. Please refresh and try again.",
+                    code=get_error_code("OPTIMISTIC_LOCKING_CONFLICT")
+                )
+            
+            # Set is_active to False and update lastchange
+            # Convert to offset-naive datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE
+            db_key.is_active = False
+            db_key.lastchange = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            
+            await session.commit()
+            await session.refresh(db_key)
+            
+            # Audit logging for critical operation
+            import logging
+            logger = logging.getLogger(__name__)
+            user = info.context.get("user", {})
+            user_id = getattr(user, "id", None) or (user.get("id") if isinstance(user, dict) else None)
+            logger.info(
+                f"AUDIT: api_key_deactivate - user_id={user_id}, api_key_id={db_key.id}, "
+                f"name={db_key.name}"
+            )
+            
+            # Convert to GQL model
+            return ApiKeyGQLModel.from_dataclass(db_key)
 
     @strawberry.mutation(
         description="""Regenerate an API Key (create new key, keep metadata)""",
@@ -792,18 +907,14 @@ class ApiKeyMutation:
             OnlyForAuthentized
         ],
         extensions=[
-            UserRoleProviderExtension[UpdateError, ApiKeyGQLModel](),
-            RbacProviderExtension[UpdateError, ApiKeyGQLModel](),
-            LoadDataExtension[UpdateError, ApiKeyGQLModel]()
+            # UserRoleProviderExtension a RbacProviderExtension nejsou potřeba - načítáme data ručně v resolveru
+            # LoadDataExtension není potřeba - načítáme data ručně v resolveru
         ]
     )
     async def api_key_regenerate(
         self,
         info: strawberry.types.Info,
         api_key: ApiKeyRegenerateGQLModel,
-        db_row: typing.Any,
-        rbacobject_id: IDType,
-        user_roles: typing.List[dict],
     ) -> typing.Union[ApiKeyGQLModel, UpdateError[ApiKeyGQLModel]]:
         """
         Regenerate an API Key - create new key prefix and hash, keep all other metadata.
@@ -835,14 +946,14 @@ class ApiKeyMutation:
             if not db_key:
                 return UpdateError(
                     msg="API key not found",
-                    code="KEY_NOT_FOUND"
+                    code=get_error_code("KEY_NOT_FOUND")
                 )
             
             # Check optimistic locking
             if db_key.lastchange != api_key.lastchange:
                 return UpdateError(
                     msg="Key was modified by another user. Please refresh and try again.",
-                    code="OPTIMISTIC_LOCKING_CONFLICT"
+                    code=get_error_code("OPTIMISTIC_LOCKING_CONFLICT")
                 )
             
             # Generate new key
@@ -851,7 +962,8 @@ class ApiKeyMutation:
             # Update only key-related fields
             db_key.prefix = prefix
             db_key.key_hash = key_hash
-            db_key.lastchange = datetime.datetime.now(datetime.timezone.utc)
+            # Convert to offset-naive datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE
+            db_key.lastchange = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             
             await session.commit()
             await session.refresh(db_key)
@@ -930,9 +1042,10 @@ class ApiKeyMutation:
                         return 0
                     
                     # Deactivate them in bulk
+                    # Convert to offset-naive datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE
                     count = 0
                     deactivated_key_ids = []
-                    now_db = datetime.datetime.now(datetime.timezone.utc)
+                    now_db = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     for key in expired_keys:
                         key.is_active = False
                         key.lastchange = now_db

@@ -8,6 +8,8 @@ Tento registry slouží pro:
 - Export do GraphQL schema pro client-side handling
 """
 
+import uuid
+
 ERROR_CODES = {
     # ========== User Authentication & Authorization Errors ==========
     "USER_NOT_FOUND": {
@@ -133,6 +135,13 @@ ERROR_CODES = {
     },
 }
 
+# Deterministic UUID namespace for error codes
+ERROR_CODE_NAMESPACE = uuid.UUID("3f9c6a2d-4e51-4a25-8a2b-7c0b4e2c7f5a")
+
+# Ensure each error code has a stable UUID
+for _code, _meta in ERROR_CODES.items():
+    _meta.setdefault("uuid", str(uuid.uuid5(ERROR_CODE_NAMESPACE, _code)))
+
 def get_error_description(code: str) -> str:
     """
     Get human-readable description for an error code.
@@ -174,6 +183,20 @@ def get_error_category(code: str) -> str:
     if code in ERROR_CODES:
         return ERROR_CODES[code].get("category", "unknown")
     return "unknown"
+
+def get_error_code(code: str) -> str:
+    """
+    Return UUID string for a logical error code.
+    
+    Args:
+        code: Error code key (e.g., "USER_NOT_FOUND")
+        
+    Returns:
+        UUID string if known, otherwise the input code
+    """
+    if code in ERROR_CODES:
+        return ERROR_CODES[code]["uuid"]
+    return code
 
 def get_all_error_codes() -> dict:
     """

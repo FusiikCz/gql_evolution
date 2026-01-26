@@ -1,8 +1,8 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:3.10.13-slim AS prepare
+FROM python:3.11-slim AS prepare
 
-# instalace curl a git, aby bylo mozne zprovoznit standardni healthcheck a instalovat z git
-RUN apt update && apt install curl git -y && rm -rf /var/cache/apk/*
+# instalace curl, aby bylo mozne zprovoznit standardni healthcheck
+RUN apt update && apt install curl -y && rm -rf /var/cache/apk/*
 
 EXPOSE 8000
 
@@ -13,12 +13,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Install pip requirements
-COPY azure_proxy/requirements.txt .
-RUN python -m pip install -r requirements.txt
-
 WORKDIR /app
-COPY azure_proxy/ /app/
-COPY src/ /app/src/
+COPY azure_proxy/requirements.txt /app/requirements.txt
+RUN python -m pip install -r /app/requirements.txt
+
+# Copy proxy code and shared backend sources
+COPY azure_proxy /app/azure_proxy
+COPY src /app/src
+
+# Ensure backend sources are importable
+ENV PYTHONPATH=/app
 
 RUN useradd appuser && chown -R appuser /app
 USER appuser
@@ -26,4 +30,5 @@ USER appuser
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
 #CMD ["gunicorn", "--reload=True", "--bind", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app"]
 #CMD ["gunicorn", "--bind", "0.0.0.0:8000", "-t", "300", "-k", "uvicorn.workers.UvicornWorker", "main:app"]
+WORKDIR /app/azure_proxy
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

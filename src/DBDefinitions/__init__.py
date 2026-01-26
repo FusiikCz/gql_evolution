@@ -19,12 +19,14 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
     asyncEngine = create_async_engine(connectionstring)
 
     async with asyncEngine.begin() as conn:
+        dialect_name = getattr(getattr(conn, "dialect", None), "name", None) or getattr(asyncEngine.dialect, "name", None)
         if makeDrop:
             await conn.run_sync(BaseModel.metadata.drop_all)
             logging.info("BaseModel.metadata.drop_all finished")
 
-        # Create pgvector extension BEFORE creating tables
-        await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
+        # Create pgvector extension BEFORE creating tables (Postgres only)
+        if dialect_name == "postgresql":
+            await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
         
         # Fix: Remove duplicate indexes that may have been created
         # This fixes the issue where token_prefix had both index=True and explicit Index in __table_args__
@@ -41,25 +43,26 @@ async def startEngine(connectionstring, makeDrop=False, makeUp=True):
                 logging.info("BaseModel.metadata.create_all finished")
                 
                 # Fix: Ensure embedding columns are nullable (pgvector may create NOT NULL by default)
-                try:
-                    await conn.exec_driver_sql(
-                        "ALTER TABLE document_evolution ALTER COLUMN embedding DROP NOT NULL;"
-                    )
-                    logging.info("Fixed document_evolution.embedding to be nullable")
-                except Exception as e:
-                    # Table might not exist or column might already be nullable
-                    logging.debug(f"Could not alter document_evolution.embedding: {e}")
-                    pass
-                    
-                try:
-                    await conn.exec_driver_sql(
-                        "ALTER TABLE document_fragments ALTER COLUMN embedding DROP NOT NULL;"
-                    )
-                    logging.info("Fixed document_fragments.embedding to be nullable")
-                except Exception as e:
-                    # Table might not exist or column might already be nullable
-                    logging.debug(f"Could not alter document_fragments.embedding: {e}")
-                    pass
+                if dialect_name == "postgresql":
+                    try:
+                        await conn.exec_driver_sql(
+                            "ALTER TABLE document_evolution ALTER COLUMN embedding DROP NOT NULL;"
+                        )
+                        logging.info("Fixed document_evolution.embedding to be nullable")
+                    except Exception as e:
+                        # Table might not exist or column might already be nullable
+                        logging.debug(f"Could not alter document_evolution.embedding: {e}")
+                        pass
+                        
+                    try:
+                        await conn.exec_driver_sql(
+                            "ALTER TABLE document_fragments ALTER COLUMN embedding DROP NOT NULL;"
+                        )
+                        logging.info("Fixed document_fragments.embedding to be nullable")
+                    except Exception as e:
+                        # Table might not exist or column might already be nullable
+                        logging.debug(f"Could not alter document_fragments.embedding: {e}")
+                        pass
                     
             except sqlalchemy.exc.NoReferencedTableError as e:
                 logging.error(f"Unable to automatically create tables: {e}")

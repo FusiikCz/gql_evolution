@@ -31,6 +31,7 @@ from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProvide
 from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
 
 from .BaseGQLModel import BaseGQLModel, IDType, Relation
+from src.Utils.error_codes import get_error_code
 
 # Forward references
 ApiKeyGQLModel = typing.Annotated["ApiKeyGQLModel", strawberry.lazy(".ApiKeyGQLModel")]
@@ -338,17 +339,17 @@ class EndpointConfigMutation:
             valid_types = ['openai_chat', 'openai_responses', 'azure_chat', 'azure_responses', 'custom']
             if endpoint_config.endpoint_type not in valid_types:
                 return InsertError(
-                    id=None,
                     msg=f"Invalid endpoint_type: {endpoint_config.endpoint_type}. Must be one of: {', '.join(valid_types)}",
-                    code="INVALID_ENDPOINT_TYPE"
+                    code=get_error_code("INVALID_ENDPOINT_TYPE"),
+                    _input=endpoint_config
                 )
             
             # Basic URL validation
             if endpoint_config.base_url and not (endpoint_config.base_url.startswith('http://') or endpoint_config.base_url.startswith('https://')):
                 return InsertError(
-                    id=None,
                     msg=f"Invalid base_url format: {endpoint_config.base_url}. Must start with http:// or https://",
-                    code="INVALID_BASE_URL"
+                    code=get_error_code("INVALID_BASE_URL"),
+                    _input=endpoint_config
                 )
             
             # Convert model_mapping to dict if it's a string
@@ -358,9 +359,9 @@ class EndpointConfigMutation:
                     model_mapping = json.loads(model_mapping)
                 except json.JSONDecodeError:
                     return InsertError(
-                        id=None,
                         msg=f"Invalid model_mapping JSON: {model_mapping}",
-                        code="INVALID_JSON"
+                        code=get_error_code("INVALID_JSON"),
+                        _input=endpoint_config
                     )
             
             # Create new endpoint configuration
@@ -431,17 +432,18 @@ class EndpointConfigMutation:
             
             if existing is None:
                 return UpdateError(
-                    id=endpoint_config.id,
                     msg=f"Endpoint configuration with id {endpoint_config.id} not found",
-                    code="KEY_NOT_FOUND"
+                    code=get_error_code("KEY_NOT_FOUND"),
+                    _input=endpoint_config
                 )
             
             # Optimistic locking check
             if existing.lastchange != endpoint_config.lastchange:
                 return UpdateError(
-                    id=endpoint_config.id,
                     msg="Concurrent modification detected. Please refresh and try again.",
-                    code="OPTIMISTIC_LOCKING_CONFLICT"
+                    code=get_error_code("OPTIMISTIC_LOCKING_CONFLICT"),
+                    _input=endpoint_config,
+                    _entity=EndpointConfigGQLModel.from_dataclass(existing)
                 )
             
             # Update fields
@@ -459,9 +461,10 @@ class EndpointConfigMutation:
                         model_mapping = json.loads(model_mapping)
                     except json.JSONDecodeError:
                         return UpdateError(
-                            id=endpoint_config.id,
                             msg=f"Invalid model_mapping JSON: {model_mapping}",
-                            code="INVALID_JSON"
+                            code=get_error_code("INVALID_JSON"),
+                            _input=endpoint_config,
+                            _entity=EndpointConfigGQLModel.from_dataclass(existing)
                         )
                 existing.model_mapping = model_mapping
             if endpoint_config.default_deployment is not None:
@@ -530,9 +533,9 @@ class EndpointConfigMutation:
             
             if existing is None:
                 return DeleteError(
-                    id=id,
                     msg=f"Endpoint configuration with id {id} not found",
-                    code="KEY_NOT_FOUND"
+                    _input=None,
+                    code=get_error_code("KEY_NOT_FOUND")
                 )
             
             # Store name for audit log before deletion

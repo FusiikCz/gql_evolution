@@ -15,6 +15,7 @@ from src.DBDefinitions import (
 
 from uoishelpers.dataloaders.LoaderMapBase import LoaderMapBase
 from uoishelpers.dataloaders.IDLoader import IDLoader
+from uoishelpers.resolvers import getUserFromInfo
 import src.DBDefinitions
 
 class LoaderMap(LoaderMapBase[BaseModel]):

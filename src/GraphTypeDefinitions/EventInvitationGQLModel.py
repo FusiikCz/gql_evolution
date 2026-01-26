@@ -34,6 +34,7 @@ from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessCont
 from uoishelpers.gqlpermissions.UserAbsoluteAccessControlExtension import UserAbsoluteAccessControlExtension
 
 from .BaseGQLModel import BaseGQLModel, IDType
+from src.Utils.error_codes import get_error_code
 
 
 EventGQLModel = typing.Annotated["EventGQLModel", strawberry.lazy(".EventGQLModel")]
@@ -47,12 +48,12 @@ class EventInvitationInputFilter:
     user_id: IDType
     state_id: IDType
 
-    event: EventInputFilter = strawberry.field(description="""Event filter operators, 
+    event: typing.Optional[EventInputFilter] = strawberry.field(description="""Event filter operators, 
 for field "event" the filters could be
 {"event": {"start_date": {"_ge": "2025-06-30T18:01:59"}}}
 {"event": {"end_date": {"_le": "2025-06-30T18:01:59"}}}
 {"event": {"_and": [{"start_date": {"_ge": "2025-06-30T18:01:59"}}, {"end_date": {"_le": "2025-06-30T18:01:59"}}]}}
-""")
+""", default=None)
 
 @strawberry.federation.type(
     keys=["id"], 
@@ -115,7 +116,7 @@ class EventInvitationGQLModel(BaseGQLModel):
         resolver=ScalarResolver[UserGQLModel](fkey_field_name="user_id")
     )
 
-@strawberry.type(description="")
+@strawberry.type(description="EventInvitation queries for fetching invitations by id or by filter")
 class EventInvitationQuery:
 
     event_invitation_by_id: typing.Optional[EventInvitationGQLModel] = strawberry.field(
@@ -253,7 +254,8 @@ class EventInvitationMutation:
                 if existing:
                     return InsertError(
                         msg=f"Invitation for user {invitation.user_id} to event {invitation.event_id} already exists",
-                        _input=invitation
+                        _input=invitation,
+                        code=get_error_code("DUPLICATE_INVITATION")
                     )
         
         return await Insert[EventInvitationGQLModel].DoItSafeWay(info=info, entity=invitation)
@@ -292,7 +294,7 @@ class EventInvitationMutation:
             return UpdateError[EventInvitationGQLModel](
                 _entity=db_row,
                 msg="User not found in context",
-                code="USER_NOT_FOUND",
+                code=get_error_code("USER_NOT_FOUND"),
                 location="event_invitation_accept_decline",
                 _input=invitation
             )
@@ -303,7 +305,7 @@ class EventInvitationMutation:
             return UpdateError[EventInvitationGQLModel](
                 _entity=db_row,
                 msg="User missing ID attribute",
-                code="USER_INVALID",
+                code=get_error_code("USER_INVALID"),
                 location="event_invitation_accept_decline",
                 _input=invitation
             )
@@ -318,7 +320,7 @@ class EventInvitationMutation:
         return UpdateError[EventInvitationGQLModel](
             _entity=db_row,
             msg="You are not authorized",
-            code="NOT_AUTHORIZED",
+            code=get_error_code("NOT_AUTHORIZED"),
             location="event_invitation_accept_decline",
             _input=invitation
         )
@@ -362,7 +364,7 @@ class EventInvitationMutation:
             return UpdateError[EventInvitationGQLModel](
                 _entity=db_row,
                 msg="User not found in context",
-                code="USER_NOT_FOUND",
+                code=get_error_code("USER_NOT_FOUND"),
                 location="event_invitation_update",
                 _input=invitation
             )
@@ -373,7 +375,7 @@ class EventInvitationMutation:
             return UpdateError[EventInvitationGQLModel](
                 _entity=db_row,
                 msg="User missing ID attribute",
-                code="USER_INVALID",
+                code=get_error_code("USER_INVALID"),
                 location="event_invitation_update",
                 _input=invitation
             )
@@ -387,7 +389,7 @@ class EventInvitationMutation:
         return UpdateError[EventInvitationGQLModel](
             _entity=db_row,
             msg="You are not organizer",
-            code="NOT_ORGANIZER",
+            code=get_error_code("NOT_ORGANIZER"),
             location="event_invitation_update",
             _input=invitation
         )

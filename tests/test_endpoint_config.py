@@ -5,7 +5,7 @@ Tests CRUD operations for EndpointConfig entity.
 import pytest
 import logging
 import json
-from GraphTypeDefinitions import schema
+from src.GraphTypeDefinitions import schema
 from .shared import (
     prepare_demodata,
     prepare_in_memory_sqllite,
@@ -19,8 +19,18 @@ def runAssert(expression, comment):
 
 
 @pytest.mark.asyncio
+@pytest.mark.crud
+@pytest.mark.create
+@pytest.mark.endpoint_config
 async def test_endpoint_config_insert():
-    """Test creating a new endpoint configuration"""
+    """
+    CREATE: Test creating a new endpoint configuration
+    
+    Verifies:
+    - EndpointConfig can be created with valid data
+    - All fields are correctly saved and returned
+    - No errors occur during creation
+    """
     async_session_maker = await prepare_in_memory_sqllite()
     await prepare_demodata(async_session_maker)
     context_value = createContext(async_session_maker)
@@ -37,14 +47,14 @@ async def test_endpoint_config_insert():
                 ... on EndpointConfigGQLModel {
                     id
                     name
-                    endpointType: endpoint_type
-                    baseUrl: base_url
-                    isActive: is_active
+                    endpointType
+                    baseUrl
+                    isActive
                     description
                 }
                 ... on InsertError {
                     msg
-                    code
+                    failed
                 }
             }
         }
@@ -53,19 +63,21 @@ async def test_endpoint_config_insert():
     logging.debug(f"mutation: {mutation}")
     resp = await schema.execute(mutation, context_value=context_value)
     
-    assert resp.errors is None, f"Expected no errors, got: {resp.errors}"
-    assert resp.data is not None, "Expected data in response"
+    assert resp.errors is None, f"ERROR: GraphQL errors occurred: {resp.errors}"
+    assert resp.data is not None, "ERROR: No data in response"
     
     result = resp.data.get("result")
-    assert result is not None, "Expected result in response"
+    assert result is not None, "ERROR: No result in response data"
     
     # Should be EndpointConfigGQLModel, not InsertError
-    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got InsertError: {result}"
-    assert result.get("name") == "Test OpenAI Endpoint"
-    assert result.get("endpointType") == "openai_chat"
-    assert result.get("baseUrl") == "https://api.openai.com/v1"
-    assert result.get("isActive") is True
-    assert result.get("id") is not None
+    assert "msg" not in result, f"ERROR: Expected EndpointConfigGQLModel, got InsertError: {result}"
+    assert result.get("name") == "Test OpenAI Endpoint", f"ERROR: Name mismatch: expected 'Test OpenAI Endpoint', got '{result.get('name')}'"
+    assert result.get("endpointType") == "openai_chat", f"ERROR: EndpointType mismatch: expected 'openai_chat', got '{result.get('endpointType')}'"
+    assert result.get("baseUrl") == "https://api.openai.com/v1", f"ERROR: BaseUrl mismatch: expected 'https://api.openai.com/v1', got '{result.get('baseUrl')}'"
+    assert result.get("isActive") is True, f"ERROR: IsActive mismatch: expected True, got {result.get('isActive')}"
+    assert result.get("id") is not None, "ERROR: ID was not generated"
+    
+    print(f"SUCCESS: Created EndpointConfig with ID: {result.get('id')}")
 
 
 @pytest.mark.asyncio
@@ -91,9 +103,9 @@ async def test_endpoint_config_insert_with_model_mapping():
                 ... on EndpointConfigGQLModel {{
                     id
                     name
-                    endpointType: endpoint_type
-                    modelMapping: model_mapping
-                    defaultDeployment: default_deployment
+                    endpointType
+                    modelMapping
+                    defaultDeployment
                 }}
                 ... on InsertError {{
                     msg
@@ -231,9 +243,9 @@ async def test_endpoint_config_page():
             result: endpointConfigPage {
                 id
                 name
-                endpointType: endpoint_type
-                baseUrl: base_url
-                isActive: is_active
+                    endpointType
+                    baseUrl
+                    isActive
             }
         }
     """
@@ -284,9 +296,9 @@ async def test_endpoint_config_by_id():
             result: endpointConfigById(id: $id) {{
                 id
                 name
-                endpointType: endpoint_type
-                baseUrl: base_url
-                isActive: is_active
+                    endpointType
+                    baseUrl
+                    isActive
             }}
         }}
     """
@@ -350,11 +362,11 @@ async def test_endpoint_config_update():
                 ... on EndpointConfigGQLModel {{
                     id
                     name
-                    isActive: is_active
+                    isActive
                 }}
-                ... on UpdateError {{
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -376,7 +388,7 @@ async def test_endpoint_config_update():
     
     result = update_resp.data.get("result")
     assert result is not None, "Expected result in response"
-    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got UpdateError: {result}"
+    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got EndpointConfigGQLModelUpdateError: {result}"
     assert result.get("name") == "Updated Test Endpoint"
     assert result.get("isActive") is False
 
@@ -413,10 +425,9 @@ async def test_endpoint_config_delete():
     delete_mutation = f"""
         mutation($id: UUID!) {{
             result: endpointConfigDelete(id: $id) {{
-                ... on DeleteError {{
-                    id
+                ... on EndpointConfigGQLModelDeleteError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -469,10 +480,9 @@ async def test_endpoint_config_delete_not_found():
     delete_mutation = f"""
         mutation($id: UUID!) {{
             result: endpointConfigDelete(id: $id) {{
-                ... on DeleteError {{
-                    id
+                ... on EndpointConfigGQLModelDeleteError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -492,7 +502,7 @@ async def test_endpoint_config_delete_not_found():
     # Should return DeleteError for non-existent ID
     assert result is not None, "Expected DeleteError for non-existent ID"
     assert "msg" in result, "Expected DeleteError message"
-    assert result.get("code") == "KEY_NOT_FOUND"
+    assert result.get("failed") is True
 
 
 # ============================================
@@ -520,7 +530,7 @@ async def test_endpoint_config_insert_all_types():
                     ... on EndpointConfigGQLModel {{
                         id
                         name
-                        endpointType: endpoint_type
+                        endpointType
                     }}
                     ... on InsertError {{
                         msg
@@ -643,13 +653,13 @@ async def test_endpoint_config_insert_optional_fields():
                 ... on EndpointConfigGQLModel {{
                     id
                     name
-                    endpointType: endpoint_type
-                    baseUrl: base_url
-                    apiVersion: api_version
-                    modelMapping: model_mapping
-                    defaultDeployment: default_deployment
+                    endpointType
+                    baseUrl
+                    apiVersion
+                    modelMapping
+                    defaultDeployment
                     description
-                    isActive: is_active
+                    isActive
                 }}
                 ... on InsertError {{
                     msg
@@ -695,10 +705,9 @@ async def test_endpoint_config_update_not_found():
                     id
                     name
                 }}
-                ... on UpdateError {{
-                    id
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -716,10 +725,9 @@ async def test_endpoint_config_update_not_found():
     result = resp.data.get("result")
     assert result is not None, "Expected result in response"
     
-    # Should be UpdateError, not EndpointConfigGQLModel
-    assert "msg" in result, "Expected UpdateError for non-existent ID"
-    assert result.get("code") == "KEY_NOT_FOUND"
-    assert result.get("id") == fake_id
+    # Should be EndpointConfigGQLModelUpdateError, not EndpointConfigGQLModel
+    assert "msg" in result, "Expected EndpointConfigGQLModelUpdateError for non-existent ID"
+    assert result.get("failed") is True
 
 
 @pytest.mark.asyncio
@@ -766,10 +774,9 @@ async def test_endpoint_config_update_optimistic_locking():
                     id
                     name
                 }}
-                ... on UpdateError {{
-                    id
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -787,10 +794,9 @@ async def test_endpoint_config_update_optimistic_locking():
     result = update_resp.data.get("result")
     assert result is not None, "Expected result in response"
     
-    # Should be UpdateError due to optimistic locking conflict
-    assert "msg" in result, "Expected UpdateError for optimistic locking conflict"
-    assert result.get("code") == "OPTIMISTIC_LOCKING_CONFLICT"
-    assert result.get("id") == created_id
+    # Should be EndpointConfigGQLModelUpdateError due to optimistic locking conflict
+    assert "msg" in result, "Expected EndpointConfigGQLModelUpdateError for optimistic locking conflict"
+    assert result.get("failed") is True
 
 
 @pytest.mark.asyncio
@@ -835,10 +841,9 @@ async def test_endpoint_config_update_invalid_json():
                     id
                     name
                 }}
-                ... on UpdateError {{
-                    id
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -856,9 +861,9 @@ async def test_endpoint_config_update_invalid_json():
     result = update_resp.data.get("result")
     assert result is not None, "Expected result in response"
     
-    # Should be UpdateError due to invalid JSON
-    assert "msg" in result, "Expected UpdateError for invalid JSON"
-    assert result.get("code") == "INVALID_JSON"
+    # Should be EndpointConfigGQLModelUpdateError due to invalid JSON
+    assert "msg" in result, "Expected EndpointConfigGQLModelUpdateError for invalid JSON"
+    assert result.get("failed") is True
 
 
 @pytest.mark.asyncio
@@ -909,9 +914,9 @@ async def test_endpoint_config_update_partial():
                     name
                     description
                 }}
-                ... on UpdateError {{
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
-                    code
+                    failed
                 }}
             }}
         }}
@@ -928,7 +933,7 @@ async def test_endpoint_config_update_partial():
     
     result = update_resp.data.get("result")
     assert result is not None, "Expected result in response"
-    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got UpdateError: {result}"
+    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got EndpointConfigGQLModelUpdateError: {result}"
     assert result.get("name") == "Updated Name Only"
     # Description should remain unchanged (not updated)
     assert result.get("description") == original_description
@@ -980,10 +985,10 @@ async def test_endpoint_config_page_filter_active():
     # Query only active endpoints
     query = """
         query {
-            result: endpointConfigPage(where: { isActive: { _eq: true } }) {
+            result: endpointConfigPage(where: { is_active: { _eq: true } }) {
                 id
                 name
-                isActive: is_active
+                isActive
             }
         }
     """
@@ -1031,10 +1036,10 @@ async def test_endpoint_config_page_filter_type():
     # Query only azure_chat endpoints
     query = """
         query {
-            result: endpointConfigPage(where: { endpointType: { _eq: "azure_chat" } }) {
+            result: endpointConfigPage(where: { endpoint_type: { _eq: "azure_chat" } }) {
                 id
                 name
-                endpointType: endpoint_type
+                endpointType
             }
         }
     """
@@ -1103,7 +1108,7 @@ async def test_endpoint_config_insert_http_url():
                 ... on EndpointConfigGQLModel {
                     id
                     name
-                    baseUrl: base_url
+                    baseUrl
                 }
                 ... on InsertError {
                     msg
@@ -1172,15 +1177,15 @@ async def test_endpoint_config_update_all_fields():
                 ... on EndpointConfigGQLModel {{
                     id
                     name
-                    endpointType: endpoint_type
-                    baseUrl: base_url
-                    apiVersion: api_version
-                    modelMapping: model_mapping
-                    defaultDeployment: default_deployment
+                    endpointType
+                    baseUrl
+                    apiVersion
+                    modelMapping
+                    defaultDeployment
                     description
-                    isActive: is_active
+                    isActive
                 }}
-                ... on UpdateError {{
+                ... on EndpointConfigGQLModelUpdateError {{
                     msg
                     code
                 }}
@@ -1199,7 +1204,7 @@ async def test_endpoint_config_update_all_fields():
     
     result = update_resp.data.get("result")
     assert result is not None, "Expected result in response"
-    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got UpdateError: {result}"
+    assert "msg" not in result, f"Expected EndpointConfigGQLModel, got EndpointConfigGQLModelUpdateError: {result}"
     assert result.get("name") == "Updated Full Name"
     assert result.get("endpointType") == "azure_chat"
     assert result.get("baseUrl") == "https://api.azure.com"

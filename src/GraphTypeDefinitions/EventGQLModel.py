@@ -12,7 +12,8 @@ from uoishelpers.gqlpermissions import (
     SimpleDeletePermission
 )    
 from uoishelpers.resolvers import (
-    getLoadersFromInfo, 
+    getLoadersFromInfo,
+    getUserFromInfo,
     createInputs,
     createInputs2,
 
@@ -28,7 +29,7 @@ from uoishelpers.resolvers import (
     ScalarResolver
 )
 from uoishelpers.gqlpermissions.LoadDataExtension import LoadDataExtension
-from uoishelpers.gqlpermissions.RbacProviderExtension import RbacProviderExtension
+from uoishelpers.gqlpermissions.RbacProviderExtension import RbacProviderExtension, MISSING
 from uoishelpers.gqlpermissions.RbacInsertProviderExtension import RbacInsertProviderExtension
 from uoishelpers.gqlpermissions.UserRoleProviderExtension import UserRoleProviderExtension
 from uoishelpers.gqlpermissions.UserAccessControlExtension import UserAccessControlExtension
@@ -36,6 +37,28 @@ from uoishelpers.gqlpermissions.UserAbsoluteAccessControlExtension import UserAb
 
 from .BaseGQLModel import BaseGQLModel, IDType, Relation
 from .TimeUnit import TimeUnit
+
+
+class DefaultRbacProviderExtension(RbacProviderExtension):
+    async def provide_rbac_object_id(self, source, info: strawberry.types.Info, *args, **kwargs):
+        rbacobject_id = await super().provide_rbac_object_id(source, info, *args, **kwargs)
+        if rbacobject_id in (None, MISSING):
+            user = getUserFromInfo(info)
+            if isinstance(user, dict):
+                return user.get("id")
+            return getattr(user, "id", None)
+        return rbacobject_id
+
+
+class OptionalLoadDataExtension(LoadDataExtension):
+    async def resolve_async(self, next_, source, info: strawberry.types.Info, *args, **kwargs):
+        input_params = next(iter(kwargs.values()), None)
+        if input_params is None:
+            return await next_(source, info, db_row=None, *args, **kwargs)
+        id_value = getattr(input_params, self.primary_key_name, None)
+        if id_value is None:
+            return await next_(source, info, db_row=None, *args, **kwargs)
+        return await super().resolve_async(next_, source, info, *args, **kwargs)
 
 EventInvitationGQLModel = typing.Annotated["EventInvitationGQLModel", strawberry.lazy(".EventInvitationGQLModel")]
 EventInvitationInputFilter = typing.Annotated["EventInvitationInputFilter", strawberry.lazy(".EventInvitationGQLModel")]
@@ -263,10 +286,10 @@ from uoishelpers.resolvers import TreeInputStructureMixin, InputModelMixin
 )
 class EventInsertGQLModel(TreeInputStructureMixin):
     getLoader = EventGQLModel.getLoader
-    masterevent_id: IDType = strawberry.field(
+    masterevent_id: typing.Optional[IDType] = strawberry.field(
         description="""Event parent id - foreign key to parent Event entity for hierarchical structure.
         @relation(to: EventGQLModel, field: 'id')""",
-        # default=None
+        default=None
     )
     name: typing.Optional[str] = strawberry.field(
         description="""Event name assigned by an administrator""",
@@ -280,11 +303,13 @@ class EventInsertGQLModel(TreeInputStructureMixin):
         description="""Event description""",
         default=None
     )
-    start_date: typing.Optional[datetime.datetime] = strawberry.field(
+    startdate: typing.Optional[datetime.datetime] = strawberry.field(
+        name="startDate",
         description="""Event start date""",
         default=None
     )
-    end_date: typing.Optional[datetime.datetime] = strawberry.field(
+    enddate: typing.Optional[datetime.datetime] = strawberry.field(
+        name="endDate",
         description="""Event end date""",
         default=None
     )
@@ -322,11 +347,13 @@ class EventPlanInsertGQLModel(TreeInputStructureMixin):
         description="""Event description""",
         default=None
     )
-    start_date: typing.Optional[datetime.datetime] = strawberry.field(
+    startdate: typing.Optional[datetime.datetime] = strawberry.field(
+        name="startDate",
         description="""Plan start date""",
         default=None
     )
-    end_date: typing.Optional[datetime.datetime] = strawberry.field(
+    enddate: typing.Optional[datetime.datetime] = strawberry.field(
+        name="endDate",
         description="""Plan end date""",
         default=None
     )
@@ -379,14 +406,14 @@ class EventEnsureUserInvitationsModel:
         # default=None
     )
     user_invitations: typing.Optional[typing.List[EventInvitationInsertModel]] = strawberry.field(
-        description="",
+        description="List of invitations to ensure exist for this event",
         default_factory=list
     )
     
     pass
 
 @strawberry.input(
-    description=""
+    description="Input type for creating a facility reservation linked to an event"
 )
 class EventReservationInsertModel(InputModelMixin):
     @staticmethod
@@ -409,7 +436,7 @@ class EventReservationInsertModel(InputModelMixin):
     createdby_id: strawberry.Private[IDType]
 
 @strawberry.input(
-    description=""
+    description="Batch input for ensuring facility reservations for an event"
 )
 class EventEnsureFacilityReservationsModel():
     getLoader = EventGQLModel.getLoader
@@ -418,7 +445,7 @@ class EventEnsureFacilityReservationsModel():
         default=None
     )
     facility_reservations: typing.Optional[typing.List[EventReservationInsertModel]] = strawberry.field(
-        description="",
+        description="List of facility reservations to ensure exist for this event",
         default_factory=list
     )
     pass
@@ -482,15 +509,15 @@ class EventMutation:
         ],
         extensions=[
             # UpdatePermissionCheckRoleFieldExtension[GroupGQLModel](roles=["administrátor", "personalista"]),
-            UserAccessControlExtension[UpdateError, EventGQLModel](
+            UserAccessControlExtension[InsertError, EventGQLModel](
                 roles=[
                     "plánovací administrátor", 
                     # "personalista"
                 ]
             ),
-            UserRoleProviderExtension[UpdateError, EventGQLModel](),
-            RbacProviderExtension[UpdateError, EventGQLModel](),
-            LoadDataExtension[UpdateError, EventGQLModel](
+            UserRoleProviderExtension[InsertError, EventGQLModel](),
+            DefaultRbacProviderExtension[InsertError, EventGQLModel](),
+            OptionalLoadDataExtension[InsertError, EventGQLModel](
                 getLoader=EventGQLModel.getLoader,
                 primary_key_name="masterevent_id"
             )
@@ -514,14 +541,14 @@ class EventMutation:
         ],
         extensions=[
             # UpdatePermissionCheckRoleFieldExtension[GroupGQLModel](roles=["administrátor", "personalista"]),
-            UserAccessControlExtension[UpdateError, EventGQLModel](
+            UserAccessControlExtension[InsertError, EventGQLModel](
                 roles=[
                     "plánovací administrátor", 
                     # "personalista"
                 ]
             ),
-            UserRoleProviderExtension[UpdateError, EventGQLModel](),
-            RbacInsertProviderExtension[UpdateError, EventGQLModel](
+            UserRoleProviderExtension[InsertError, EventGQLModel](),
+            RbacInsertProviderExtension[InsertError, EventGQLModel](
                 rbac_key_name="rbacobject_id"
             ),  
         ],
@@ -558,7 +585,10 @@ class EventMutation:
     async def event_update(
         self,
         info: strawberry.Info,
-        event: EventUpdateGQLModel
+        event: EventUpdateGQLModel,
+        db_row: typing.Any,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
     ) -> typing.Union[EventGQLModel, UpdateError[EventGQLModel]]:
         return await Update[EventGQLModel].DoItSafeWay(info=info, entity=event)
     
