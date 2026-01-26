@@ -8,6 +8,8 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 import uvicorn
+import sys
+from pathlib import Path
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -20,7 +22,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from db import (
+_BASE_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _BASE_DIR.parent
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+
+# Ensure relative imports work even when executed as a script (main:app)
+if __package__ in (None, ""):
+    __package__ = "azure_proxy"
+
+from .db import (
     AsyncSessionMaker,
     require_api_key,
     check_rate_limits,

@@ -19,27 +19,42 @@ import subprocess
 import json
 import html
 import datetime
+import re
 from pathlib import Path
+
+
+def _extract_total_tests(output: str | None) -> int | None:
+    if not output:
+        return None
+    match = re.search(r"collected\s+(\d+)\s+items", output)
+    if match:
+        return int(match.group(1))
+    return None
 
 
 def write_report(command, result):
     report_path = Path("tests/report.json")
     html_path = Path("tests/report.html")
+    combined_output = (result.stdout or "") + "\n" + (result.stderr or "")
+    total_tests = _extract_total_tests(combined_output)
     report = {
         "timestamp": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "command": command,
         "returncode": result.returncode,
         "stdout": result.stdout or "",
-        "stderr": result.stderr or ""
+        "stderr": result.stderr or "",
+        "total_tests": total_tests,
     }
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     escaped = html.escape(report["stdout"] + "\n" + report["stderr"])
+    total_line = f"<p>Total tests: {total_tests}</p>" if total_tests is not None else ""
     html_payload = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>Test Report</title></head>
 <body>
 <h2>Test Report</h2>
+{total_line}
 <pre>{escaped}</pre>
 </body>
 </html>
@@ -90,6 +105,22 @@ def main():
                 print(result.stderr, file=sys.stderr)
             write_report(cmd, result)
         sys.exit(0)
+    
+    # Run all tests
+    if sys.argv[1] == "--all":
+        cmd = ["pytest", "tests/", "-v",
+               "--override-ini", "addopts=-v --strict-markers --tb=line --showlocals --color=yes -ra"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        # If override fails due to coverage options, try without it
+        if result.returncode != 0 and result.stderr and "unrecognized arguments" in result.stderr and "--cov" in result.stderr:
+            cmd = ["pytest", "tests/", "-v"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        write_report(cmd, result)
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        sys.exit(result.returncode)
     
     test_name = sys.argv[1]
     options = sys.argv[2:] if len(sys.argv) > 2 else []

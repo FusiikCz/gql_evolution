@@ -25,13 +25,13 @@ async def initDB(asyncSessionMaker, filename="./systemdata.json"):
     if isDemo:
         logging.info("Demo mode")
         dbModels = [
-            EventModel, 
-            EventInvitationModel,
             UserModel,
             ApiKeyModel,
-            UsageModel,
             DocumentModel,
             DocumentFragmentModel,
+            EventModel,
+            EventInvitationModel,
+            UsageModel,
         ]
         
 

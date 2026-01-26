@@ -8,21 +8,149 @@
 </head>
 <body>
   <div class="container py-4">
-    <h2>Test Report</h2>
-    <p class="text-muted">Source: <code>/test-report.json</code></p>
-    <pre id="report" class="bg-light p-3 border rounded" style="min-height: 200px;"></pre>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <div>
+        <h2 class="mb-0">Test Report</h2>
+        <div class="text-muted small">Source: <code>/test-report.json</code></div>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" id="refresh">Refresh</button>
+    </div>
+
+    <div id="alert"></div>
+
+    <div class="card mb-3">
+      <div class="card-header bg-light">
+        <strong>Summary</strong>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-6 col-lg-3">
+            <div class="text-muted small">Status</div>
+            <div id="status" class="fw-semibold">-</div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="text-muted small">Timestamp</div>
+            <div id="timestamp" class="fw-semibold">-</div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="text-muted small">Return code</div>
+            <div id="returncode" class="fw-semibold">-</div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="text-muted small">Total tests</div>
+            <div id="total-tests" class="fw-semibold">-</div>
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="text-muted small">Command</div>
+          <div id="command" class="font-monospace small">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header bg-light">
+        <strong>Stdout</strong>
+      </div>
+      <div class="card-body">
+        <pre id="stdout" class="bg-body-tertiary p-3 border rounded small" style="min-height: 160px; white-space: pre-wrap;"></pre>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header bg-light">
+        <strong>Stderr</strong>
+      </div>
+      <div class="card-body">
+        <pre id="stderr" class="bg-body-tertiary p-3 border rounded small text-danger" style="min-height: 120px; white-space: pre-wrap;"></pre>
+      </div>
+    </div>
   </div>
 
   <script>
-    const target = document.getElementById('report');
-    fetch('/test-report.json')
-      .then(r => r.json())
-      .then(data => {
-        target.textContent = JSON.stringify(data, null, 2);
-      })
-      .catch(err => {
-        target.textContent = 'No report found. Run: python tests/run_test.py <test_name> --report';
-      });
+    const alertBox = document.getElementById('alert');
+    const statusEl = document.getElementById('status');
+    const timestampEl = document.getElementById('timestamp');
+    const returncodeEl = document.getElementById('returncode');
+    const totalTestsEl = document.getElementById('total-tests');
+    const commandEl = document.getElementById('command');
+    const stdoutEl = document.getElementById('stdout');
+    const stderrEl = document.getElementById('stderr');
+    const refreshBtn = document.getElementById('refresh');
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function stripAnsi(value) {
+      return value.replaceAll(/\u001b\[[0-9;]*m/g, '');
+    }
+
+    function showAlert(message, kind = 'warning') {
+      alertBox.innerHTML = `
+        <div class="alert alert-${kind}">
+          ${message}
+        </div>`;
+    }
+
+    function clearAlert() {
+      alertBox.innerHTML = '';
+    }
+
+    function renderReport(data) {
+      const statusValue = data.status ?? '-';
+      statusEl.textContent = statusValue;
+      timestampEl.textContent = data.timestamp ?? '-';
+      const returnCodeValue = Number.isFinite(data.returncode) ? data.returncode : null;
+      returncodeEl.textContent = returnCodeValue ?? '-';
+      totalTestsEl.textContent = Number.isFinite(data.total_tests) ? data.total_tests : '-';
+      const command = Array.isArray(data.command) ? data.command.join(' ') : (data.command ?? '-');
+      commandEl.textContent = command;
+
+      statusEl.classList.remove('text-success', 'text-danger', 'text-warning');
+      returncodeEl.classList.remove('text-success', 'text-danger', 'text-warning');
+      if (statusValue === 'ok') {
+        statusEl.classList.add('text-success');
+      } else if (statusValue === 'failed') {
+        statusEl.classList.add('text-danger');
+      } else if (statusValue === 'running' || statusValue === 'started') {
+        statusEl.classList.add('text-warning');
+      }
+      if (returnCodeValue === 0) {
+        returncodeEl.classList.add('text-success');
+      } else if (returnCodeValue !== null) {
+        returncodeEl.classList.add('text-danger');
+      }
+
+      const stdout = data.stdout ? stripAnsi(String(data.stdout)).trim() : '';
+      const stderr = data.stderr ? stripAnsi(String(data.stderr)).trim() : '';
+      stdoutEl.textContent = stdout || '(no stdout)';
+      stderrEl.textContent = stderr || '(no stderr)';
+    }
+
+    async function loadReport() {
+      clearAlert();
+      try {
+        const response = await fetch('/test-report.json');
+        if (!response.ok) {
+          showAlert('Pytest report was not found. Click <strong>Run Tests</strong> on <code>/test</code> to generate it.');
+          return;
+        }
+        const data = await response.json();
+        renderReport(data);
+      } catch (err) {
+        showAlert(`Failed to load report: ${escapeHtml(String(err))}`, 'danger');
+      }
+    }
+
+    refreshBtn.addEventListener('click', () => {
+      loadReport();
+    });
+
+    loadReport();
   </script>
 </body>
 </html>

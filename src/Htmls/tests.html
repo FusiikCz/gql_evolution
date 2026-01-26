@@ -112,25 +112,30 @@ function stripAnsi(value) {
 
 async function loadPytestReport() {
     const reportDiv = document.getElementById('pytest-report');
-    reportDiv.innerHTML = '';
     try {
         const response = await fetch('/test-report.json');
         if (!response.ok) {
             reportDiv.innerHTML = `
             <div class="alert alert-warning">
-              Pytest list report was not found. Run <code>python tests/run_test.py --list</code> to generate it.
+              Pytest report was not found. Click <strong>Run Tests</strong> to generate it.
             </div>`;
             return;
         }
         const data = await response.json();
+        window.__lastReportTimestamp = data.timestamp || null;
         const stdout = data.stdout ? stripAnsi(data.stdout.trim()) : '';
         const stderr = data.stderr ? stripAnsi(data.stderr.trim()) : '';
+        const totalTests = data.total_tests;
+        const totalLine = Number.isFinite(totalTests)
+          ? `<div class="text-muted mb-2">Total tests: ${totalTests}</div>`
+          : '';
         reportDiv.innerHTML = `
         <div class="card">
           <div class="card-header bg-secondary text-white">
-            <strong>Pytest list output</strong>
+            <strong>Pytest report</strong>
           </div>
           <div class="card-body">
+            ${totalLine}
             <pre>${escapeHtml(stdout || '(no stdout)')}</pre>
             ${stderr ? `<hr><pre class="text-danger">${escapeHtml(stderr)}</pre>` : ''}
           </div>
@@ -161,8 +166,45 @@ function buildSelection(schema, fieldType, master) {
     return '';
 }
 
-async function runTests() {
+async function runAllTests() {
+    const reportDiv = document.getElementById('pytest-report');
+    const previous = reportDiv.innerHTML;
+    reportDiv.innerHTML = `
+    <div class="alert alert-info">
+      Running pytest... this can take a while.
+    </div>` + previous;
+    try {
+        const response = await fetch('/test-report/run', { method: 'POST' });
+        if (!response.ok) {
+            reportDiv.innerHTML = `
+            <div class="alert alert-danger">
+              Failed to start pytest run. HTTP ${response.status}.
+            </div>`;
+            return;
+        }
+    } catch (err) {
+        reportDiv.innerHTML = `<div class="alert alert-danger">Failed to start pytest run: ${escapeHtml(String(err))}</div>`;
+        return;
+    }
+    const start = Date.now();
+    const timeoutMs = 5 * 60 * 1000;
+    while (Date.now() - start < timeoutMs) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const response = await fetch('/test-report.json');
+        if (!response.ok) {
+            continue;
+        }
+        const data = await response.json();
+        if (data.timestamp && data.timestamp !== window.__lastReportTimestamp) {
+            await loadPytestReport();
+            return;
+        }
+    }
     await loadPytestReport();
+}
+
+async function runTests() {
+    await runAllTests();
     const introspection = await fetchGraphQL(introspectionQuery);
     const data = introspection.data
     const schema = data.__schema
@@ -251,6 +293,7 @@ async function runTests() {
         }
     }
 }
+
 </script>
 </body>
 </html>

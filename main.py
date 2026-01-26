@@ -3,6 +3,9 @@ import socket
 import asyncio
 import datetime
 import warnings
+import subprocess
+import sys
+import json
 
 from contextlib import asynccontextmanager
 
@@ -33,6 +36,10 @@ from src.DBDefinitions import (
     UsageModel,
 )
 from src.DBFeeder import initDB
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_test_run_task = None
+_test_run_status = {"status": "idle"}
 
 # region logging setup
 
@@ -299,7 +306,7 @@ async def graphiql():
 @app.get("/test", response_class=FileResponse)
 async def graphiql():
     realpath = _html_path("tests.html")
-    return realpath
+    return FileResponse(realpath, headers={"Cache-Control": "no-store"})
 
 @app.get("/endpoint-config", response_class=FileResponse)
 async def endpoint_config_ui():
@@ -313,11 +320,38 @@ async def test_report_ui():
 
 @app.get("/test-report.json")
 async def test_report_json():
-    report_path = os.path.realpath("./tests/report.json")
+    report_path = os.path.join(BASE_DIR, "tests", "report.json")
     if not os.path.exists(report_path):
         return JSONResponse({"status": "missing", "message": "Run tests to generate report.json"}, status_code=404)
     with open(report_path, "r", encoding="utf-8") as handle:
-        return JSONResponse(json.load(handle))
+        return JSONResponse(json.load(handle), headers={"Cache-Control": "no-store"})
+
+@app.post("/test-report/run")
+async def run_test_report():
+    global _test_run_task
+    command = [sys.executable, "tests/run_test.py", "--all"]
+
+    if _test_run_task is not None and not _test_run_task.done():
+        return JSONResponse({"status": "running"})
+
+    async def _run_tests():
+        _test_run_status.update({"status": "running"})
+        result = await asyncio.to_thread(
+            subprocess.run,
+            command,
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+        _test_run_status.update(
+            {
+                "status": "ok" if result.returncode == 0 else "failed",
+                "returncode": result.returncode
+            }
+        )
+
+    _test_run_task = asyncio.create_task(_run_tests())
+    return JSONResponse({"status": "started", "command": command})
 
 async def _collect_analytics_payload(async_session_maker):
     """Shared analytics aggregation used by multiple endpoints."""

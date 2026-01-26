@@ -173,13 +173,20 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
     def valid_(self) -> typing.Optional[bool]:
         if self.valid is not None:
             return self.valid
+        def _to_utc_aware(value: datetime.datetime | None) -> datetime.datetime | None:
+            if value is None:
+                return None
+            return value if value.tzinfo else value.replace(tzinfo=datetime.timezone.utc)
+
         now = datetime.datetime.now(datetime.timezone.utc)
-        if self.startdate and self.enddate:
-            return self.startdate <= now <= self.enddate
-        elif self.startdate:
-            return self.startdate <= now
-        elif self.enddate:
-            return now <= self.enddate
+        start = _to_utc_aware(self.startdate)
+        end = _to_utc_aware(self.enddate)
+        if start and end:
+            return start <= now <= end
+        elif start:
+            return start <= now
+        elif end:
+            return now <= end
         return False
 
     @strawberry.field(

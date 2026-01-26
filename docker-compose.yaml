@@ -27,6 +27,10 @@ services:
         AZURE_COGNITIVE_ACCOUNT_NAME: ${AZURE_COGNITIVE_ACCOUNT_NAME}
         AZURE_OPENAI_API_KEY: ${OPENAI_API_KEY}
         AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+    command: ["uvicorn", "azure_proxy.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ./azure_proxy:/app/azure_proxy
+      - ./src:/app/src
     ports:
       - 8798:8000
 
