@@ -1,0 +1,34 @@
+# Dockerfile for generating supergraph schema using rover CLI
+# Installs rover CLI in Ubuntu - works on Windows, Linux, macOS
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y curl bash tar gzip sed && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install rover CLI - download directly from GitHub releases
+RUN ROVER_VERSION="v0.37.2" && \
+    ARCH="x86_64-unknown-linux-gnu" && \
+    curl -L "https://github.com/apollographql/rover/releases/download/${ROVER_VERSION}/rover-${ROVER_VERSION}-${ARCH}.tar.gz" -o /tmp/rover.tar.gz && \
+    mkdir -p /tmp/rover_extract && \
+    tar -xzf /tmp/rover.tar.gz -C /tmp/rover_extract && \
+    mkdir -p /root/.rover/bin && \
+    find /tmp/rover_extract -name "rover" -type f -exec mv {} /root/.rover/bin/ \; && \
+    chmod +x /root/.rover/bin/rover && \
+    rm -rf /tmp/rover.tar.gz /tmp/rover_extract
+
+# Add rover to PATH
+ENV PATH="/root/.rover/bin:${PATH}"
+
+# Copy configuration files
+COPY supergraph.yaml /config/supergraph.yaml
+
+# Create generate_supergraph.sh script directly in Dockerfile to avoid Windows line endings issues
+RUN printf '#!/bin/bash\nset -e\necho "Generating supergraph schema..."\necho "Waiting for GraphQL endpoint at http://gql_app:8000/gql..."\nfor i in {1..30}; do\n  if curl -f -s -X POST http://gql_app:8000/gql -H "Content-Type: application/json" -d '"'"'{"query":"{ __typename }"}'"'"' > /dev/null 2>&1; then\n    echo "GraphQL endpoint is available!"\n    break\n  fi\n  if [ $i -eq 30 ]; then\n    echo "Error: GraphQL endpoint not available after 30 attempts"\n    exit 1\n  fi\n  sleep 2\ndone\necho "Composing supergraph schema..."\nrover supergraph compose --config /config/supergraph.yaml --elv2-license accept > /config/supergraph.graphql\nif [ $? -eq 0 ]; then\n  echo "Supergraph schema generated successfully!"\n  echo "File: /config/supergraph.graphql"\nelse\n  echo "Error generating supergraph schema"\n  exit 1\nfi\n' > /generate_supergraph.sh && chmod +x /generate_supergraph.sh
+
+# Set working directory
+WORKDIR /config
+
+# Run the generation script
+CMD ["/bin/bash", "/generate_supergraph.sh"]

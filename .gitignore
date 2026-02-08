@@ -22,3 +22,6 @@
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Apollo Router - generated files
+apollo_config/supergraph.graphql

@@ -183,11 +183,12 @@ class EventInvitationInsertGQLModel(InputModelMixin):
 )
 class EventInvitationUpdateGQLModel:
     id: IDType = strawberry.field(
-        description="""id"""
+        description="""EventInvitation id to update"""
     )
 
     lastchange: datetime.datetime = strawberry.field(
-        description="""timestamp"""
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
 
     state_id: typing.Optional[IDType] = strawberry.field(
@@ -211,7 +212,8 @@ class EventInvitationDeleteGQLModel:
         description="""EventInvitation id"""
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="""EventInvitation lastchange"""
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
 
 

@@ -34,8 +34,39 @@ services:
       - postgres_gql
     ports:
       - 8000:8000
+      # Port 4000 so that http://localhost:4000/api/gql and http://localhost:4000/gql work (same app as 8000)
+      - 4000:8000
     volumes:
       - ./:/app
+
+  # Apollo Federation Gateway - uses hrbolek/apollo_federation
+  # This router uses environment variables instead of supergraph files
+  # Note: gql_app is also exposed on 4000 so http://localhost:4000/api/gql works; Apollo is on 4001
+  apollo:
+    image: hrbolek/apollo_federation
+    environment:
+      # Port where Apollo Router listens inside container
+      - PORT=3000
+      # SERVICES is JSON array describing available GraphQL services
+      - |
+        SERVICES=
+        [
+          {"name": "gql_app", "url": "http://gql_app:8000/gql"}
+        ]
+    healthcheck:
+      # Health check - test if container is healthy
+      test: "curl -f -X GET http://localhost:3000/ || exit 1"
+      interval: 60s
+      retries: 3
+      start_period: 60s
+      timeout: 10s
+    restart: on-failure:3 # No restart if container is "unhealthy", max 3 attempts
+    ports:
+      # External port 4001 to avoid conflict with gql_app on 4000 (so /api/gql works on 4000)
+      - 4001:3000
+    depends_on:
+      gql_app:
+        condition: service_started
 
   azure_proxy:
     build:
@@ -45,6 +76,13 @@ services:
         AZURE_COGNITIVE_ACCOUNT_NAME: ${AZURE_COGNITIVE_ACCOUNT_NAME}
         AZURE_OPENAI_API_KEY: ${OPENAI_API_KEY}
         AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: example
+        POSTGRES_DB: data
+        POSTGRES_HOST: postgres_gql:5432
+    depends_on:
+      postgres_gql:
+        condition: service_healthy
     command: ["uvicorn", "azure_proxy.main:app", "--host", "0.0.0.0", "--port", "8000"]
     volumes:
       - ./azure_proxy:/app/azure_proxy
@@ -69,7 +107,7 @@ services:
       # - dbdata:/var/lib/postgresql/data
       - ./pgvector:/docker-entrypoint-initdb.d    
     ports:
-      - 5434:5432
+      - 5435:5432  # Changed from 5434 to avoid port conflict
 
   pgadmin:
     image: dpage/pgadmin4

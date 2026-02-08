@@ -25,11 +25,12 @@ from .EventInvitationGQLModel import EventInvitationGQLModel
 from .EventInvitationStateGQLModel import EventInvitationStateGQLModel
 from .VectorFilters import VectorFilter, VectorSimilarityFilter, VectorDistanceFilter
 from .EndpointConfigGQLModel import EndpointConfigGQLModel
+from .RBACObjectGQLModel import RBACObjectGQLModel
 
 schema = strawberry.federation.Schema(
     query=Query,
     mutation=Mutation,
-    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, ApiKeyInsertResponse, UsageGQLModel, DocumentGQLModel, DocumentFragmentGQLModel, EventGQLModel, EventInvitationGQLModel, EventInvitationStateGQLModel, EndpointConfigGQLModel), 
+    types=(UserGQLModel, BaseGQLModel, ApiKeyGQLModel, ApiKeyInsertResponse, UsageGQLModel, DocumentGQLModel, DocumentFragmentGQLModel, EventGQLModel, EventInvitationGQLModel, EventInvitationStateGQLModel, EndpointConfigGQLModel, RBACObjectGQLModel), 
     scalar_overrides={datetime.timedelta: timedelta._scalar_definition},
 
     extensions=[],

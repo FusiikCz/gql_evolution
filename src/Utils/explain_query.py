@@ -1,4 +1,52 @@
+"""
+GraphQL query explanation and documentation generator.
+
+This module provides utilities for analyzing GraphQL queries and generating
+human-readable documentation including parameter descriptions, input structures,
+and output properties.
+"""
+
 def explain_graphql_query(schema_ast, query):
+    """
+    Generate a detailed explanation of a GraphQL query with documentation.
+    
+    Analyzes a GraphQL query against a schema AST and generates:
+    - @param: Variable definitions with types and descriptions
+    - @input: Input structure with nested types and descriptions
+    - @property: Output structure with field types and descriptions
+    - The original query formatted with comments
+    
+    Args:
+        schema_ast: GraphQL schema AST (DocumentNode) containing type definitions
+        query: GraphQL query string to analyze
+    
+    Returns:
+        String containing the explained query with:
+        - Parameter documentation
+        - Input structure documentation
+        - Output property documentation
+        - Original query with proper formatting
+    
+    Example:
+        ```python
+        explained = explain_graphql_query(schema_ast, """
+            query($id: ID!) {
+                user(id: $id) {
+                    name
+                    email
+                }
+            }
+        """)
+        # Returns query with @param, @input, @property comments
+        ```
+    
+    Note:
+        This function performs deep analysis of:
+        - Variable usage and type inference
+        - Fragment spreads and inline fragments
+        - Nested input/output structures
+        - Type descriptions from schema
+    """
     from graphql import parse, build_ast_schema, print_ast, GraphQLSchema
     from graphql.language.ast import (
         DocumentNode, FieldNode, SelectionSetNode, OperationDefinitionNode,

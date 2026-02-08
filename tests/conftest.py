@@ -4,11 +4,20 @@ Pytest configuration and fixtures for better test output and functionality.
 import pytest
 import sys
 import os
+import asyncio
+import warnings
 from pathlib import Path
 
 # Ensure tests run in DEMO mode and disable WhoAmIExtension explicitly
 os.environ.setdefault("DEMO", "True")
 os.environ.setdefault("DISABLE_WHOAMI_EXTENSION", "True")
+
+# Silence strawberry deprecation warning from third-party extensions.
+warnings.filterwarnings(
+    "ignore",
+    message="Event driven styled extensions for on_request_start or on_request_end are deprecated, use on_operation instead",
+    category=DeprecationWarning,
+)
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -109,12 +118,43 @@ def pytest_sessionfinish(session, exitstatus):
     print("TEST SUMMARY")
     print("="*80)
     
-    passed = len([r for r in session.items if hasattr(r, 'call') and r.call.excinfo is None])
-    failed = len([r for r in session.items if hasattr(r, 'call') and r.call.excinfo is not None])
-    total = len(session.items)
+    # Get stats from terminal reporter - stats are populated during test execution
+    try:
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter and hasattr(reporter, 'stats') and reporter.stats:
+            passed = len(reporter.stats.get('passed', []))
+            failed = len(reporter.stats.get('failed', []))
+            skipped = len(reporter.stats.get('skipped', []))
+            total = passed + failed + skipped
+        else:
+            # Fallback: use exitstatus and session items count
+            total = len(session.items)
+            # If we can't get stats, just show total - pytest will show details anyway
+            passed = failed = skipped = 0
+    except Exception as e:
+        # Ultimate fallback - just show total
+        total = len(session.items)
+        passed = failed = skipped = 0
     
     print(f"Total tests: {total}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    print(f"Skipped: {total - passed - failed}")
+    if passed + failed + skipped > 0:
+        print(f"Passed: {passed}")
+        print(f"Failed: {failed}")
+        print(f"Skipped: {skipped}")
+    else:
+        print("(Detailed stats shown above by pytest)")
     print("="*80)
+
+    # Clean up async engines created in tests to avoid GC warnings.
+    try:
+        from tests import shared as test_shared
+        try:
+            asyncio.run(test_shared.cleanup_test_engines())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(test_shared.cleanup_test_engines())
+            finally:
+                loop.close()
+    except Exception:
+        pass

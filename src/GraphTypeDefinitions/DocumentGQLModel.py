@@ -209,7 +209,9 @@ class DocumentInsertGQLModel(TreeInputStructureMixin):
         default=None
     )
     subdocuments: typing.Optional[typing.List["DocumentInsertGQLModel"]] = strawberry.field(
-        description="sub documents",
+        description="""Child documents (subdocuments) of this document for hierarchical document structure.
+        Allows creating nested documents where this document is the parent.
+        Example: A course document can have multiple chapter subdocuments.""",
         default_factory=list
     )
     
@@ -240,7 +242,8 @@ class DocumentUpdateGQLModel:
         description="""Document id""",
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="timestamp"
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
     name: typing.Optional[str] = strawberry.field(
         description="""Document name assigned by an administrator""",
@@ -280,7 +283,8 @@ class DocumentDeleteGQLModel:
         description="""Document id""",
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="""last change""",
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts.""",
     )
 
 @strawberry.interface(

@@ -171,6 +171,11 @@ class EndpointConfigQuery:
 class EndpointConfigInsertGQLModel(InputModelMixin):
     getLoader = EndpointConfigGQLModel.getLoader
     
+    id: typing.Optional[IDType] = strawberry.field(
+        description="""Endpoint Configuration id""",
+        default=None
+    )
+    
     name: str = strawberry.field(
         description="""Human-readable name for the endpoint configuration"""
     )
@@ -241,7 +246,8 @@ class EndpointConfigUpdateGQLModel:
     )
     
     lastchange: datetime.datetime = strawberry.field(
-        description="timestamp"
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
     
     name: typing.Optional[str] = strawberry.field(
@@ -315,12 +321,24 @@ class EndpointConfigMutation:
         - INVALID_ENDPOINT_TYPE: endpoint_type is not valid
         - INVALID_BASE_URL: base_url format is invalid
         """,
-        permission_classes=[OnlyForAuthentized]
+        permission_classes=[OnlyForAuthentized],
+        extensions=[
+            UserAccessControlExtension[InsertError, EndpointConfigGQLModel](
+                roles=["administrátor"]
+            ),
+            UserRoleProviderExtension[InsertError, EndpointConfigGQLModel](),
+            RbacInsertProviderExtension[InsertError, EndpointConfigGQLModel](
+                rbac_key_name="rbacobject_id"
+            ),
+            # LoadDataExtension není potřeba pro insert - nová entita ještě neexistuje
+        ]
     )
     async def endpoint_config_insert(
-        self, 
+        self,
         info: strawberry.types.Info,
-        endpoint_config: EndpointConfigInsertGQLModel
+        endpoint_config: EndpointConfigInsertGQLModel,
+        rbacobject_id: IDType,
+        user_roles: typing.List[dict],
     ) -> typing.Union[EndpointConfigGQLModel, InsertError[EndpointConfigGQLModel]]:
         """
         Insert a new endpoint configuration.
@@ -336,7 +354,8 @@ class EndpointConfigMutation:
         async with async_session_maker() as session:
             from src.DBDefinitions import EndpointConfigModel
             
-            # Validate endpoint_type
+            # Validate endpoint_type against allowed values
+            # Supported types: OpenAI chat/completions, Azure chat/completions, custom endpoints
             valid_types = ['openai_chat', 'openai_responses', 'azure_chat', 'azure_responses', 'custom']
             if endpoint_config.endpoint_type not in valid_types:
                 return InsertError(
@@ -345,7 +364,8 @@ class EndpointConfigMutation:
                     _input=endpoint_config
                 )
             
-            # Basic URL validation
+            # Basic URL validation: must start with http:// or https://
+            # Ensures endpoint URL is properly formatted for HTTP requests
             if endpoint_config.base_url and not (endpoint_config.base_url.startswith('http://') or endpoint_config.base_url.startswith('https://')):
                 return InsertError(
                     msg=f"Invalid base_url format: {endpoint_config.base_url}. Must start with http:// or https://",
@@ -353,7 +373,8 @@ class EndpointConfigMutation:
                     _input=endpoint_config
                 )
             
-            # Convert model_mapping to dict if it's a string
+            # Convert model_mapping from JSON string to dict if needed
+            # Model mapping is stored as JSON in DB but can be provided as string or dict
             model_mapping = endpoint_config.model_mapping
             if isinstance(model_mapping, str):
                 try:
@@ -366,19 +387,25 @@ class EndpointConfigMutation:
                     )
             
             # Create new endpoint configuration
-            new_endpoint = EndpointConfigModel(
-                name=endpoint_config.name,
-                endpoint_type=endpoint_config.endpoint_type,
-                base_url=endpoint_config.base_url,
-                model_mapping=model_mapping,
-                default_deployment=endpoint_config.default_deployment,
-                api_version=endpoint_config.api_version,
-                shared_token_hash=endpoint_config.shared_token_hash,
-                token_prefix=endpoint_config.token_prefix,
-                is_active=endpoint_config.is_active if endpoint_config.is_active is not None else True,
-                description=endpoint_config.description,
-                api_key_id=endpoint_config.api_key_id
-            )
+            endpoint_data = {
+                "name": endpoint_config.name,
+                "endpoint_type": endpoint_config.endpoint_type,
+                "base_url": endpoint_config.base_url,
+                "model_mapping": model_mapping,
+                "default_deployment": endpoint_config.default_deployment,
+                "api_version": endpoint_config.api_version,
+                "shared_token_hash": endpoint_config.shared_token_hash,
+                "token_prefix": endpoint_config.token_prefix,
+                "is_active": endpoint_config.is_active if endpoint_config.is_active is not None else True,
+                "description": endpoint_config.description,
+                "api_key_id": endpoint_config.api_key_id
+            }
+            
+            # Add ID if provided
+            if endpoint_config.id:
+                endpoint_data["id"] = endpoint_config.id
+                
+            new_endpoint = EndpointConfigModel(**endpoint_data)
             
             session.add(new_endpoint)
             await session.commit()
@@ -535,8 +562,7 @@ class EndpointConfigMutation:
             if existing is None:
                 return DeleteError(
                     msg=f"Endpoint configuration with id {id} not found",
-                    _input=None,
-                    code=get_error_code("KEY_NOT_FOUND")
+                    _input=None
                 )
             
             # Store name for audit log before deletion

@@ -282,11 +282,13 @@ class UserInsertGQLModel(InputModelMixin):
     )
     
     is_active: typing.Optional[bool] = strawberry.field(
+        name="isActive",
         description="""Whether the user account is active""",
         default=True
     )
     
     is_verified: typing.Optional[bool] = strawberry.field(
+        name="isVerified",
         description="""Whether the user email is verified""",
         default=False
     )
@@ -316,12 +318,21 @@ class UserInsertGQLModel(InputModelMixin):
         default=10
     )
     
+    last_login_at: typing.Optional[datetime.datetime] = strawberry.field(
+        name="lastLoginAt",
+        description="""Last time the user logged in""",
+        default=None
+    )
+    
     id: typing.Optional[IDType] = strawberry.field(
         description="""User id""",
         default=None
     )
     
-    rbacobject_id: strawberry.Private[IDType] = None
+    rbacobject_id: typing.Optional[IDType] = strawberry.field(
+        description="""RBAC object ID""",
+        default=None
+    )
     createdby_id: strawberry.Private[IDType] = None
 
 @strawberry.input(
@@ -333,7 +344,8 @@ class UserUpdateGQLModel:
     )
     
     lastchange: datetime.datetime = strawberry.field(
-        description="timestamp for optimistic locking"
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
     
     name: typing.Optional[str] = strawberry.field(
@@ -391,7 +403,8 @@ class UserDeleteGQLModel:
         description="""User id"""
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="""last change"""
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
 
 # Mutation interface
@@ -413,15 +426,16 @@ class UserMutation:
                 roles=["administrátor"]
             ),
             UserRoleProviderExtension[InsertError, UserGQLModel](),
-            RbacProviderExtension[InsertError, UserGQLModel](),
-            LoadDataExtension[InsertError, UserGQLModel]()
+            RbacInsertProviderExtension[InsertError, UserGQLModel](
+                rbac_key_name="rbacobject_id"
+            ),
+            # LoadDataExtension není potřeba pro insert - nová entita ještě neexistuje
         ],
     )
     async def user_insert(
         self,
         info: strawberry.Info,
         user: UserInsertGQLModel,
-        db_row: typing.Any,
         rbacobject_id: IDType,
         user_roles: typing.List[dict],
     ) -> typing.Union[UserGQLModel, InsertError[UserGQLModel]]:
@@ -436,7 +450,8 @@ class UserMutation:
         - INVALID_EMAIL: Email format is invalid
         - EMAIL_ALREADY_EXISTS: Email already exists in database
         """
-        # Validate email format if provided
+        # Validate email format using regex pattern
+        # Ensures email follows standard format (user@domain.tld)
         if user.email and not validate_email(user.email):
             return InsertError(
                 msg=f"Invalid email format: {user.email}",
@@ -444,7 +459,8 @@ class UserMutation:
                 code=get_error_code("INVALID_EMAIL")
             )
         
-        # Check for duplicate email if provided
+        # Check for duplicate email to enforce uniqueness constraint
+        # Each email can only be associated with one user account
         if user.email:
             async_session_maker = info.context["asyncSessionMaker"]
             async with async_session_maker() as session:

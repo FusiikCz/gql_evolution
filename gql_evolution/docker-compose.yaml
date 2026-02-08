@@ -19,6 +19,24 @@ services:
     ports:
       - 3000:3000
 
+  gql_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: data
+      POSTGRES_HOST: postgres_gql:5432
+      DEMODATA: "True"
+      DISABLE_WHOAMI_EXTENSION: "False"
+    depends_on:
+      - postgres_gql
+    ports:
+      - 8000:8000
+    volumes:
+      - ./:/app
+
   azure_proxy:
     build:
       context: .                    # potrebuje pristup k /src
@@ -36,6 +54,18 @@ services:
       - ./src:/app/src
     ports:
       - 8798:8000
+
+  apollo_router:
+    image: ghcr.io/apollographql/router:v1.45.0
+    ports:
+      - 4000:4000
+    environment:
+      APOLLO_ROUTER_CONFIG_PATH: /config/router.yaml
+    volumes:
+      - ./apollo_config:/config
+    depends_on:
+      - gql_app
+    command: --config /config/router.yaml
 
   postgres_gql:
     image: pgvector/pgvector:pg17

@@ -149,7 +149,8 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
     duration: typing.Optional[datetime.timedelta] = strawberry.field(
         name="duration_raw",
         default=None,
-        description="""len""",
+        description="""Raw duration value stored in database (timedelta object).
+        Use the computed 'duration' field for duration in minutes.""",
         permission_classes=[
             OnlyForAuthentized
         ]
@@ -157,22 +158,39 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
 
     valid: typing.Optional[bool] = strawberry.field(
         name="valid_raw",
-        description="""If it intersects current date""",
+        description="""Raw validity flag stored in database.
+        If None, validity is computed dynamically based on current date and event startdate/enddate.
+        Use the computed 'valid' field for current validity status.""",
         default=None,
         permission_classes=[OnlyForAuthentized]
     )
 
     @strawberry.field(
         name="valid",
-        description="""Event duration, implicitly in minutes""",
+        description="""Whether the event is currently valid (active).
+        An event is valid if the current date/time falls within its startdate-enddate range.
+        If only startdate is set, event is valid from startdate onwards.
+        If only enddate is set, event is valid until enddate.
+        Returns True if event is currently active, False otherwise.""",
         permission_classes=[
             OnlyForAuthentized,
             # OnlyForAdmins
         ],
     )
     def valid_(self) -> typing.Optional[bool]:
+        """
+        Compute event validity based on current date/time and event date range.
+        
+        If valid_raw is set in DB, use that value. Otherwise compute dynamically:
+        - If both startdate and enddate: valid if current time is within range
+        - If only startdate: valid from startdate onwards
+        - If only enddate: valid until enddate
+        - If neither: invalid (False)
+        """
         if self.valid is not None:
             return self.valid
+        
+        # Helper to ensure datetime is timezone-aware (UTC)
         def _to_utc_aware(value: datetime.datetime | None) -> datetime.datetime | None:
             if value is None:
                 return None
@@ -181,6 +199,8 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
         now = datetime.datetime.now(datetime.timezone.utc)
         start = _to_utc_aware(self.startdate)
         end = _to_utc_aware(self.enddate)
+        
+        # Check if current time falls within event date range
         if start and end:
             return start <= now <= end
         elif start:
@@ -198,11 +218,21 @@ Materializovaná cesta reprezentující umístění skupiny v hierarchii.""",
         ],
     )
     def _duration(self, unit: TimeUnit=TimeUnit.MINUTES) -> typing.Optional[float]:
+        """
+        Compute event duration in specified time unit.
+        
+        If duration_raw is set in DB, use that. Otherwise compute from startdate-enddate.
+        Returns duration in seconds, minutes, hours, or days based on unit parameter.
+        Returns None if duration cannot be computed (missing dates).
+        """
         duration = self.duration
         if duration is None:
+            # Compute duration from date range if not stored
             if self.startdate is None or self.enddate is None:
                 return None
             duration = (self.enddate - self.startdate)
+        
+        # Convert timedelta to seconds, then to requested unit
         result = duration.total_seconds()
         if unit == TimeUnit.SECONDS:
             return result
@@ -466,7 +496,8 @@ class EventUpdateGQLModel:
         description="""Event id""",
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="timestamp"
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
     )
     name: typing.Optional[str] = strawberry.field(
         description="""Event name assigned by an administrator""",
@@ -502,7 +533,8 @@ class EventDeleteGQLModel:
         description="""Event id""",
     )
     lastchange: datetime.datetime = strawberry.field(
-        description="""last change""",
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts.""",
     )
 
 @strawberry.interface(

@@ -240,18 +240,34 @@ async def dummy(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan context manager for application startup and shutdown.
+    
+    Handles:
+    - Database engine initialization
+    - Database backup on graceful shutdown
+    - Proper cleanup on cancellation (Ctrl+C)
+    """
     from src.DBFeeder import backupDB
+    import asyncio
     icm = dummy if innerlifespan is None else innerlifespan
     async with icm(app):
         print(f"FastAPI.lifespan {innerlifespan is None}")
         initizalizedEngine = await RunOnceAndReturnSessionMaker()
         try:
             yield
+        except asyncio.CancelledError:
+            # Handle graceful shutdown on Ctrl+C
+            logging.info("Application shutdown requested (CancelledError)")
+            raise
         finally:
             # Backup database on shutdown
             try:
                 await backupDB(initizalizedEngine)
                 logging.info("Database backup completed successfully")
+            except asyncio.CancelledError:
+                # Don't log CancelledError during shutdown as it's expected
+                logging.debug("Database backup cancelled during shutdown")
             except Exception as e:
                 logging.error(f"Error during database backup: {e}", exc_info=True)
     

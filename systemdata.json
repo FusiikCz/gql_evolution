@@ -314,5 +314,47 @@
             "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
             "rbacobject_id": "041f77ab-02f2-4a9d-baa9-3f4d2f0e3e9d"
         }
+    ],
+    "endpoint_configs": [
+        {
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "created": "2024-10-01T08:00:00.000000",
+            "lastchange": "2024-10-13T12:30:00.000000",
+            "__typename": "EndpointConfigGQLModel",
+            "name": "OpenAI Chat Production",
+            "endpoint_type": "openai_chat",
+            "base_url": "https://api.openai.com/v1",
+            "model_mapping": null,
+            "default_deployment": null,
+            "api_version": null,
+            "shared_token_hash": null,
+            "token_prefix": null,
+            "is_active": true,
+            "description": "Production OpenAI chat endpoint",
+            "api_key_id": null,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        },
+        {
+            "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "created": "2024-10-02T09:00:00.000000",
+            "lastchange": "2024-10-14T10:15:00.000000",
+            "__typename": "EndpointConfigGQLModel",
+            "name": "Azure Chat Staging",
+            "endpoint_type": "azure_chat",
+            "base_url": "https://my-resource.openai.azure.com",
+            "model_mapping": {"gpt-4o": "gpt4o-prod", "gpt-4": "gpt4-prod"},
+            "default_deployment": "gpt4o-prod",
+            "api_version": "2024-12-01-preview",
+            "shared_token_hash": null,
+            "token_prefix": null,
+            "is_active": true,
+            "description": "Staging Azure OpenAI chat endpoint",
+            "api_key_id": null,
+            "createdby_id": "d3e6c9d5-afff-4e7e-896a-257271bed4a1",
+            "changedby_id": "0822fb51-7560-4b4b-b674-75ac9df37ee8",
+            "rbacobject_id": "7163bb1e-3507-45db-8830-c4265ebba313"
+        }
     ]
 }

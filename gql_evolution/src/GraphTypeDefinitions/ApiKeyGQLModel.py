@@ -284,6 +284,11 @@ class ApiKeyQuery:
         if user_id is None:
             return []
         
+        # Convert to UUID object if it's a string
+        import uuid
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+        
         # Get database session
         async_session_maker = info.context["asyncSessionMaker"]
         async with async_session_maker() as session:
@@ -559,6 +564,9 @@ class ApiKeyMutation:
             return InsertError(msg="User missing ID attribute", _input=api_key, code="USER_INVALID")
         
         user_id = user.id if hasattr(user, 'id') else user['id']
+        # Convert to UUID object if it's a string
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
         
         # Validate rate limits if provided
         if api_key.rate_limit_per_minute is not None and api_key.rate_limit_per_hour is not None:

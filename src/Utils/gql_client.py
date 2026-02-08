@@ -1,4 +1,47 @@
+"""
+GraphQL client utilities for authenticated API access.
+
+This module provides functions for creating authenticated GraphQL clients
+that handle OAuth token management and automatic re-authentication.
+"""
+
 async def createGQLClient(*, url: str = "http://localhost:33001/api/gql", username: str, password: str):
+    """
+    Create an authenticated GraphQL client with automatic token management.
+    
+    This function:
+    1. Authenticates with the OAuth endpoint to obtain a token
+    2. Returns a client function that automatically handles token refresh
+       when authentication expires
+    
+    Args:
+        url: GraphQL endpoint URL (default: http://localhost:33001/api/gql)
+        username: Username for authentication
+        password: Password for authentication
+    
+    Returns:
+        Async function that accepts (query, variables, cookies) and returns
+        the GraphQL response. The function automatically handles:
+        - Token refresh on authentication errors
+        - Retry logic for transient failures
+        - Proper error handling
+    
+    Example:
+        ```python
+        client = await createGQLClient(
+            url="http://api.example.com/gql",
+            username="user",
+            password="pass"
+        )
+        result = await client(
+            "query { user { id name } }",
+            variables={}
+        )
+        ```
+    
+    Raises:
+        Exception: If max re-authentication attempts are reached
+    """
     import aiohttp
     async def getToken():
         authurl = url.replace("/api/gql", "/oauth/login3")

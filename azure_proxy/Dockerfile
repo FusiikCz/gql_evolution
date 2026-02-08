@@ -1,8 +1,8 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
 FROM python:3.11-slim AS prepare
 
-# instalace curl, aby bylo mozne zprovoznit standardni healthcheck
-RUN apt update && apt install curl -y && rm -rf /var/cache/apk/*
+# instalace curl a git, aby bylo mozne zprovoznit standardni healthcheck a instalovat git dependencies
+RUN apt update && apt install -y curl git && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8000
 

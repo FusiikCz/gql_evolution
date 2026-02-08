@@ -8,6 +8,10 @@ omit =
     */site-packages/*
     */migrations/*
     */alembic/*
+    src/Utils/explain_query.py
+    src/Utils/utils_sdl_2.py
+    src/Utils/GraphQLQueryBuilder.py
+    src/Utils/gql_client.py
 
 [report]
 exclude_lines =

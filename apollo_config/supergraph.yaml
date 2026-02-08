@@ -1,0 +1,8 @@
+# Supergraph configuration for Apollo Router
+# This file is used by rover CLI to compose the supergraph schema
+
+subgraphs:
+  gql_app:
+    routing_url: http://gql_app:8000/gql
+    schema:
+      subgraph_url: http://gql_app:8000/gql

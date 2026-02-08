@@ -77,16 +77,18 @@ class VectorDistanceFilter:
 )
 class VectorFilter:
     _similarity: typing.Optional[VectorSimilarityFilter] = strawberry.field(
+        name="Similarity",
         default=None,
         description="""Find entities with embeddings similar to the given vector using cosine similarity.
         Recommended for normalized embeddings. Returns entities where similarity >= threshold.
-        Example: {"_similarity": {"vector": [...], "threshold": 0.8}}"""
+        Example: {"Similarity": {"vector": [...], "threshold": 0.8}}"""
     )
     
     _distance: typing.Optional[VectorDistanceFilter] = strawberry.field(
+        name="Distance",
         default=None,
         description="""Find entities with embeddings within the specified distance using Euclidean distance.
         Returns entities where distance <= max_distance.
-        Example: {"_distance": {"vector": [...], "max_distance": 0.5}}"""
+        Example: {"Distance": {"vector": [...], "max_distance": 0.5}}"""
     )
 

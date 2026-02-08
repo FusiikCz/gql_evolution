@@ -4,7 +4,9 @@ import typing
 import strawberry
 import dataclasses
 
-from uoishelpers.gqlpermissions import OnlyForAuthentized, RBACObjectGQLModel
+from uoishelpers.gqlpermissions import OnlyForAuthentized
+# Import RBACObjectGQLModel from our wrapper to ensure it's a base type in Federation
+from .RBACObjectGQLModel import RBACObjectGQLModel
 
 IDType = uuid.UUID
 UserGQLModel = typing.Annotated["UserGQLModel", strawberry.lazy(".UserGQLModel")]
@@ -82,7 +84,8 @@ class BaseGQLModel:
         )
     lastchange: typing.Optional[datetime.datetime] = strawberry.field(
         name="lastchange",
-        description="timestamp", 
+        description="""Last modification timestamp for optimistic locking.
+        Used to prevent concurrent modification conflicts - must match current value when updating.""", 
         default=None,
         permission_classes=[OnlyForAuthentized]
         )
@@ -134,4 +137,11 @@ class BaseGQLModel:
         permission_classes=[OnlyForAuthentized]
         )
     async def rbacobject(self, info: strawberry.types.Info) -> typing.Optional["RBACObjectGQLModel"]:
-        return None if self.rbacobject_id is None else RBACObjectGQLModel(id=self.rbacobject_id)
+        from .RBACObjectGQLModel import RBACObjectGQLModel
+        # RBACObjectGQLModel is a simple wrapper, just create instance with id
+        if self.rbacobject_id is None:
+            return None
+        try:
+            return RBACObjectGQLModel(id=str(self.rbacobject_id))
+        except Exception:
+            return None

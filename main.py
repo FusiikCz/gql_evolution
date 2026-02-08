@@ -239,22 +239,36 @@ async def dummy(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan context manager for application startup and shutdown.
+    
+    Handles:
+    - Database engine initialization
+    - Database backup on graceful shutdown
+    - Proper cleanup on cancellation (Ctrl+C)
+    """
     from src.DBFeeder import backupDB
+    import asyncio
     icm = dummy if innerlifespan is None else innerlifespan
     async with icm(app):
         print(f"FastAPI.lifespan {innerlifespan is None}")
         initizalizedEngine = await RunOnceAndReturnSessionMaker()
         try:
             yield
+        except asyncio.CancelledError:
+            # Handle graceful shutdown on Ctrl+C
+            logging.info("Application shutdown requested (CancelledError)")
+            raise
         finally:
             # Backup database on shutdown
             try:
                 await backupDB(initizalizedEngine)
                 logging.info("Database backup completed successfully")
+            except asyncio.CancelledError:
+                # Don't log CancelledError during shutdown as it's expected
+                logging.debug("Database backup cancelled during shutdown")
             except Exception as e:
                 logging.error(f"Error during database backup: {e}", exc_info=True)
-    
-    # print("App shutdown, nothing to do")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -271,6 +285,8 @@ schema.extensions.append(
 
 
 app.include_router(graphql_app, prefix="/gql")
+# Also mount at /api/gql for clients that expect this path (e.g. Apollo Gateway docs, localhost:8000/api/gql)
+app.include_router(graphql_app, prefix="/api/gql")
 
 def _html_path(filename: str) -> str:
     public_path = os.path.realpath(os.path.join("public", filename))
@@ -427,6 +443,7 @@ async def diagnostics(
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "links": {
             "graphql": str(request.base_url) + "gql",
+            "graphql_api": str(request.base_url) + "api/gql",
             "analytics": str(request.base_url) + "analytics",
             "dashboard": str(request.base_url) + "dashboard",
             "voyager": str(request.base_url) + "voyager",

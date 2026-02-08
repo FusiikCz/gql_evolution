@@ -251,7 +251,8 @@ class UsageQuery:
         # Get database session
         async_session_maker = info.context["asyncSessionMaker"]
         async with async_session_maker() as session:
-            # Build query with filters
+            # Build aggregation query: count requests, sum tokens/cost, average tokens per request
+            # Uses COALESCE to return 0 instead of NULL when no records match
             stmt = select(
                 func.count(UsageModel.id).label('total_requests'),
                 func.coalesce(func.sum(UsageModel.total_tokens), 0).label('total_tokens'),
@@ -259,7 +260,7 @@ class UsageQuery:
                 func.coalesce(func.avg(UsageModel.total_tokens), 0.0).label('avg_tokens')
             )
             
-            # Apply filters
+            # Apply optional filters: filter by API key, date range (start/end)
             if api_key_id:
                 stmt = stmt.where(UsageModel.api_key_id == api_key_id)
             if start_date:

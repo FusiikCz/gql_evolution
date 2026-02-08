@@ -1,0 +1,15 @@
+# Apollo Router Configuration for GraphQL Federation
+# This configuration is used when Apollo Router loads supergraph.graphql file
+# Subgraph routing is defined in supergraph.graphql, not here
+
+# CORS configuration (Apollo Router v1.59.2 syntax)
+# Note: Cannot combine allow_any_origin: true with allow_credentials: true
+cors:
+  allow_any_origin: true
+
+# Note: When using supergraph.graphql file:
+# - Subgraph URLs are defined in supergraph.graphql via @join__graph directives
+# - Server listen address: Apollo Router v1.59.2 defaults to 127.0.0.1:4000 inside container
+# - Docker port mapping (4000:4000) should make it accessible from host
+# - If not accessible, try using --listen 0.0.0.0:4000 in command (but this version may ignore it)
+# - No need for 'subgraphs' or 'server' sections in router.yaml for Apollo Router v1.59.2

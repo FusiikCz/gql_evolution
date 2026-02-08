@@ -134,7 +134,10 @@ class EventInvitationStateInsertGQLModel(InputModelMixin):
 class EventInvitationStateUpdateGQLModel(InputModelMixin):
     getLoader = EventInvitationStateGQLModel.getLoader
     id: IDType = strawberry.field(description="State id")
-    lastchange: datetime.datetime = strawberry.field(description="timestamp")
+    lastchange: datetime.datetime = strawberry.field(
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
+    )
     name: typing.Optional[str] = strawberry.field(default=None, description="State code")
     name_en: typing.Optional[str] = strawberry.field(default=None, description="English display name")
     description: typing.Optional[str] = strawberry.field(default=None, description="State description")
@@ -146,7 +149,10 @@ class EventInvitationStateUpdateGQLModel(InputModelMixin):
 class EventInvitationStateDeleteGQLModel(InputModelMixin):
     getLoader = EventInvitationStateGQLModel.getLoader
     id: IDType = strawberry.field(description="State id")
-    lastchange: datetime.datetime = strawberry.field(description="timestamp")
+    lastchange: datetime.datetime = strawberry.field(
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
+    )
 
 
 @strawberry.interface(description="EventInvitationState mutations")

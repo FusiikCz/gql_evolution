@@ -1058,3 +1058,60 @@ HOTOVO (uzavreno 26.1.2026):
 - Projev: `Could not resolve the type of 'parent'` v `EventInvitationStateInputFilter`
 - Pricina: Strawberry nedokazal zpracovat self‑referenci v input typu
 - Reseni: odstraneno pole `parent` z `EventInvitationStateInputFilter` (src + gql_evolution)
+
+**Chyba 17: Testy vykazovaly SQLAlchemy warnings**
+- Projev: SAWarning o neuzavrenych async connections v pytest outputu
+- Pricina: testy nevracely async sessions do poolu
+- Reseni: `tests/shared.py` trackuje sessions a engines, `cleanup_test_engines()` je volana v `pytest_sessionfinish`; `pytest.ini` potlacuje warning output (`-p no:warnings`)
+
+**Chyba 18: Chybel popis enumu v gql_evolution**
+- Projev: `gql_evolution/src/GraphTypeDefinitions/TimeUnit.py` mel prazdny `description`
+- Reseni: doplnen popis "Time unit enum for duration and aggregation windows" (src + gql_evolution)
+
+**Chyba 19: Testy ocekavaly string error codes misto UUID**
+- Projev: `test_endpoint_config_insert_invalid_type` a podobne testy kontrolovaly `code == "INVALID_ENDPOINT_TYPE"` misto UUID
+- Reseni: testy aktualizovany na `get_error_code("INVALID_ENDPOINT_TYPE")` v `tests/test_endpoint_config.py`
+
+**Chyba 20: DeleteError nepodporoval code parametr**
+- Projev: `TypeError: DeleteError.__init__() got an unexpected keyword argument 'code'`
+- Reseni: odstranen `code` parametr z `DeleteError` v `EndpointConfigGQLModel.py` (src)
+
+**Chyba 21: Chybel Docker Hub publish setup (5 b)**
+- Projev: pozadavek na publikaci image s tagem latest
+- Reseni: vytvoreny skripty `scripts/docker_publish.sh` a `scripts/docker_publish.ps1`, rozsirena dokumentace v `README.md`
+
+**Chyba 22: Chybel Apollo Gateway pro federaci v docker-compose**
+- Projev: pozadavek na "docker compose pro oveření integrace do federace"
+- Reseni: pridana sluzba `apollo_router` do `docker-compose.yaml` (src + gql_evolution), konfigurace v `apollo_config/router.yaml`, dokumentace v `README.md`
+
+26.1.2026 - Audit projektu a finalizace
+
+**Audit projektu podle Zkouška_Final.txt:**
+- ✅ Projektové dny: všechny 4 absolvovány (15 b)
+- ✅ Deníček: kompletní v README.md (5 b)
+- ✅ Komentáře/description: dobře pokryto (4-5 b)
+- ✅ Autorizace: kompletní RBAC systém (12-15 b)
+- ✅ Testy: 46 testů, coverage 37.9% (10-12 b)
+- ✅ Docker Hub: setup hotový (5 b)
+- ⚠️ Code coverage: 37.9% (doporučeno zvýšit na 50%+)
+- ⚠️ Některé utility funkce mohou mít méně komentářů
+
+**Odhad bodů: 61-73+ (projde, možná A při 90+)**
+
+**Dokončené body:**
+- ✅ Apollo Router pro federaci (docker-compose.yaml)
+- ✅ Docker Hub publish skripty (scripts/docker_publish.sh, .ps1)
+- ✅ Vyčištění testů (warnings potlačeny, cleanup implementován)
+- ✅ Všechny page queries: eventPage, eventInvitationPage, eventInvitationStatePage, apiKeyPage, usagePage, userPage, documentPage, documentFragmentPage, endpointConfigPage
+
+**Chyba 23: Zvýšení code coverage - přidání testů**
+- Projev: code coverage pouze 37.9%, potřebujeme zvýšit na 50%+
+- Reseni: 
+  - Rozšířeny testy v `tests/test_utils.py` - přidány testy pro `hash_token`, `verify_token`, všechny error code utility funkce, více edge cases pro `validate_email`
+  - Vytvořen `tests/test_vector_filters.py` - testy pro VectorFilter, VectorSimilarityFilter, VectorDistanceFilter a jejich použití v GraphQL queries
+  - Vytvořen `tests/test_mutation_edge_cases.py` - testy pro optimistic locking, duplicate entries, invalid inputs, rate limit validations, email validations
+  - Vytvořen `tests/test_api_key_computed_fields.py` - testy pro computed fields: `is_expired`, `usage_count`, `total_usage_this_month`, `total_cost_this_month`, `is_over_token_limit`, `is_over_cost_limit`, `limit_alerts`
+  - Vytvořen `tests/test_event_computed_fields.py` - testy pro `valid_` a `duration` fields v EventGQLModel
+  - Vytvořen `tests/test_user_computed_fields.py` - testy pro `is_recently_active`, `status_description`, `display_name` v UserGQLModel
+  - Aktualizován `pytest.ini` s novými markery: `vector_filters`, `utilities`
+- Očekávaný výsledek: code coverage by měl vzrůst na 50%+ po spuštění všech testů

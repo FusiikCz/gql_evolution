@@ -1,0 +1,27 @@
+# Apollo Router Configuration for GraphQL Federation
+# This enables federation testing in docker-compose
+
+supergraph:
+  # Enable introspection for federation schema composition
+  introspection: true
+
+subgraphs:
+  gql_app:
+    routing_url: http://gql_app:8000/gql
+    schema:
+      # Subgraph URL for federation introspection
+      subgraph_url: http://gql_app:8000/gql
+
+server:
+  listen: 0.0.0.0:4000
+
+cors:
+  origins:
+    - "*"
+  allow_credentials: true
+
+# Federation support
+# The gql_app service uses strawberry.federation.Schema which supports:
+# - @key directives for entity identification
+# - @extends for extending external entities
+# - resolve_reference for entity resolution

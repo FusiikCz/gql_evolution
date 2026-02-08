@@ -99,9 +99,67 @@ Check `utils.Dataloaders`.
 - `DISABLE_WHOAMI_EXTENSION` – set to `True` only for tests/local debugging
 
 ### Docker Hub publishing (latest tag)
+**Požadavek:** Publikace docker image na docker hub s patřičnými tagy (latest) - 5 b
+
+**Automatický skript (doporučeno):**
 ```bash
+# Linux/Mac
+./scripts/docker_publish.sh <dockerhub_user> <image_name>
+
+# Windows PowerShell
+.\scripts\docker_publish.ps1 <dockerhub_user> <image_name>
+```
+
+**Ruční příkazy:**
+```bash
+# 1. Build image s tagem
 docker build -t <dockerhub_user>/<image_name>:latest .
+
+# 2. Login do Docker Hub
+docker login
+
+# 3. Push image
 docker push <dockerhub_user>/<image_name>:latest
+
+# 4. Ověření (volitelné)
+docker pull <dockerhub_user>/<image_name>:latest
+```
+
+**Příklad:**
+```bash
+docker build -t myuser/gql-evolution:latest .
+docker push myuser/gql-evolution:latest
+```
+
+**Poznámka:** Nahraď `<dockerhub_user>` a `<image_name>` skutečnými hodnotami.
+
+### GraphQL Federation (Apollo Router)
+**Požadavek:** Docker compose pro ověření integrace do federace
+
+**Setup:**
+1. Apollo Router je nakonfigurován v `docker-compose.yaml` jako služba `apollo_router`
+2. Konfigurace: `apollo_config/router.yaml`
+3. Spuštění: `docker-compose up -d`
+4. Gateway endpoint: `http://localhost:4000`
+
+**Federation features:**
+- ✅ `strawberry.federation.Schema` s `@key` direktivami
+- ✅ Entity resolution přes `resolve_reference`
+- ✅ Apollo Router pro composition a routing
+- ✅ Introspection enabled pro schema composition
+
+**Testování:**
+```bash
+# Spustit všechny služby včetně Apollo Router
+docker-compose up -d
+
+# Ověřit Apollo Router
+curl http://localhost:4000
+
+# GraphQL query přes gateway
+curl -X POST http://localhost:4000 \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ hello }"}'
 ```
 
 ---

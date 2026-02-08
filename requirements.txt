@@ -18,7 +18,6 @@ pgvector
 
 pydantic
 starlette
-strawberry-graphql
 aiodataloader
 pyjwt[crypto]
 
@@ -28,4 +27,3 @@ openai
 
 pyinstrument
 prometheus_client
-https://github.com/hrbolek/uoishelpers/archive/refs/heads/main.zip

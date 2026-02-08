@@ -168,7 +168,10 @@ class DocumentFragmentInsertGQLModel(InputModelMixin):
 @strawberry.input(description="""Input type for updating a document fragment""")
 class DocumentFragmentUpdateGQLModel(InputModelMixin):
     id: IDType = strawberry.field(description="""Fragment id""")
-    lastchange: datetime.datetime = strawberry.field(description="""Last change token""")
+    lastchange: datetime.datetime = strawberry.field(
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
+    )
 
     title: typing.Optional[str] = strawberry.field(
         description="""Fragment title""",
@@ -197,7 +200,10 @@ class DocumentFragmentUpdateGQLModel(InputModelMixin):
 @strawberry.input(description="""Input type for deleting a document fragment""")
 class DocumentFragmentDeleteGQLModel(InputModelMixin):
     id: IDType = strawberry.field(description="""Fragment id""")
-    lastchange: datetime.datetime = strawberry.field(description="""Last change token""")
+    lastchange: datetime.datetime = strawberry.field(
+        description="""Last modification timestamp for optimistic locking.
+        Must match the lastchange value from the current entity to prevent concurrent modification conflicts."""
+    )
 
 
 @strawberry.interface(description="""Document fragment mutations""")
